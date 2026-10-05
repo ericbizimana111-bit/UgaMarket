@@ -68,7 +68,6 @@
 /* A queue that needs staff gets a tinted frame so it stands out. */
 .kpi--attention {
   border-color: color-mix(in srgb, var(--kpi) 35%, var(--border));
-  background: linear-gradient(180deg, color-mix(in srgb, var(--kpi-soft) 55%, var(--surface)) 0%, var(--surface) 70%);
 }
 
 .kpi__head {
@@ -92,7 +91,6 @@
   width: 38px;
   height: 38px;
   color: var(--kpi);
-  background: var(--kpi-soft);
   border-radius: 11px;
 }
 
