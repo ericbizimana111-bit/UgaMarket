@@ -32,7 +32,20 @@ const errorHandler = (err, req, res, next) => {
     message = 'Authentication token has expired';
   }
 
-  logger.error(`${req.method} ${req.originalUrl} - Status ${statusCode}: ${message}`, err.stack);
+  // Client errors (bad input, not signed in, not found) are routine: one
+  // warning line. Server errors keep the full stack for diagnosis.
+  if (statusCode >= 500) {
+    logger.error(`${req.method} ${req.originalUrl} - Status ${statusCode}: ${message}`, err.stack);
+  } else {
+    logger.warn(`${req.method} ${req.originalUrl} - Status ${statusCode}: ${message}`);
+  }
+
+  // Never leak internals (SQL, file paths, library messages) to clients in
+  // production: unexpected server errors get a generic message.
+  if (statusCode >= 500 && !err.isOperational && env.NODE_ENV === 'production') {
+    message = 'Something went wrong on our side. Please try again shortly.';
+    errors = null;
+  }
 
   res.status(statusCode).json({
     success: false,

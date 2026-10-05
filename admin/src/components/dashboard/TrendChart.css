@@ -1,0 +1,283 @@
+/* Last-7-days trend chart. Single series in the brand green: today in the
+   full brand step, earlier days one lighter step of the same hue. */
+.trend {
+  --trend-bar: #5E9A77;
+  --trend-bar-today: var(--brand-primary);
+  --trend-grid: var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.trend__top {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.trend__tabs {
+  display: inline-flex;
+  gap: 2px;
+  padding: 3px;
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+
+.trend__tab {
+  padding: 5px 12px;
+  font: inherit;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: transparent;
+  border: 0;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.trend__tab:hover {
+  color: var(--text-strong);
+}
+
+.trend__tab--on {
+  color: var(--text-strong);
+  background: var(--surface);
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.12);
+}
+
+.trend__tab:focus-visible {
+  outline: 2px solid var(--brand-primary);
+  outline-offset: 1px;
+}
+
+.trend__stats {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.trend__stats dt {
+  margin-bottom: 2px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.trend__stats dd {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-strong);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trend__stats dd.trend__total {
+  font-size: 22px;
+  font-weight: 800;
+  letter-spacing: -0.01em;
+}
+
+/* Plot: y-axis labels in a left gutter, columns over hairline gridlines. */
+.trend__plot {
+  position: relative;
+  height: 220px;
+  padding: 8px 0 26px 52px;
+}
+
+.trend__grid {
+  position: absolute;
+  inset: 8px 0 26px 52px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  pointer-events: none;
+}
+
+.trend__gridline {
+  position: relative;
+  border-top: 1px solid var(--trend-grid);
+}
+
+.trend__gridline:last-child {
+  border-top-color: var(--border-strong);
+}
+
+.trend__gridline span {
+  position: absolute;
+  right: calc(100% + 10px);
+  top: -8px;
+  font-size: 11px;
+  color: var(--text-faint);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.trend__cols {
+  position: relative;
+  display: flex;
+  height: 100%;
+}
+
+.trend__col {
+  position: relative;
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  outline: none;
+  cursor: default;
+  border-radius: 8px;
+}
+
+.trend__col--active {
+  background: color-mix(in srgb, var(--surface-muted) 80%, transparent);
+}
+
+.trend__col:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--brand-primary);
+}
+
+.trend__bar-wrap {
+  position: relative;
+  flex: 1;
+  width: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+
+.trend__bar {
+  width: min(24px, 60%);
+  background: var(--trend-bar);
+  border-radius: 4px 4px 0 0;
+  transition: height 0.35s ease, background 0.15s ease;
+}
+
+.trend__col--today .trend__bar {
+  background: var(--trend-bar-today);
+}
+
+.trend__col--active .trend__bar {
+  background: var(--brand-primary-strong);
+}
+
+/* A zero day keeps a short stub on the baseline so the day still reads. */
+.trend__bar--zero {
+  height: 2px;
+  background: var(--border-strong);
+  border-radius: 2px;
+}
+
+.trend__col--today .trend__bar--zero,
+.trend__col--active .trend__bar--zero {
+  background: var(--text-faint);
+}
+
+.trend__value {
+  position: absolute;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-strong);
+  white-space: nowrap;
+  pointer-events: none;
+}
+
+.trend__day {
+  position: absolute;
+  bottom: -22px;
+  font-size: 12px;
+  color: var(--text-muted);
+}
+
+.trend__col--today .trend__day {
+  font-weight: 700;
+  color: var(--text-strong);
+}
+
+.trend__tip {
+  position: absolute;
+  top: 0;
+  z-index: 2;
+  min-width: 170px;
+  padding: 10px 12px;
+  background: var(--text-strong);
+  color: #fff;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px -10px rgba(15, 23, 42, 0.45);
+  pointer-events: none;
+}
+
+.trend__tip-date {
+  font-size: 11.5px;
+  opacity: 0.75;
+}
+
+.trend__tip-main {
+  margin: 2px 0 6px;
+  font-size: 16px;
+  font-weight: 800;
+}
+
+.trend__tip-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  font-size: 12px;
+  opacity: 0.9;
+}
+
+.trend__empty {
+  position: absolute;
+  left: 52px;
+  right: 0;
+  top: 40%;
+  text-align: center;
+  font-size: 13px;
+  color: var(--text-muted);
+  pointer-events: none;
+}
+
+.trend__note {
+  margin: 0;
+  font-size: 11.5px;
+  color: var(--text-faint);
+}
+
+.trend__sr {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip: rect(0 0 0 0);
+  white-space: nowrap;
+}
+
+@media (max-width: 600px) {
+  .trend__stats {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .trend__stats div:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .trend__tabs {
+    width: 100%;
+  }
+
+  .trend__tab {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .trend__bar {
+    transition: none;
+  }
+}

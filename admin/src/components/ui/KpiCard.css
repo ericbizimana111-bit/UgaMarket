@@ -37,16 +37,6 @@
   transition: border-color 0.18s ease, box-shadow 0.18s ease, transform 0.18s ease;
 }
 
-/* Tone accent along the top edge. */
-.kpi::before {
-  content: '';
-  position: absolute;
-  inset: 0 0 auto;
-  height: 3px;
-  background: var(--kpi);
-  opacity: 0.85;
-}
-
 .kpi--primary { --kpi: var(--brand-primary); --kpi-soft: var(--brand-primary-soft); }
 .kpi--success { --kpi: var(--success); --kpi-soft: var(--success-soft); }
 .kpi--warning { --kpi: var(--warning); --kpi-soft: var(--warning-soft); }

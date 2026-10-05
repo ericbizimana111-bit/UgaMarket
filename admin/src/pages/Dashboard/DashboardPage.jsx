@@ -19,6 +19,7 @@ import { useRealtimeEvent } from '../../context/RealtimeContext';
 import { formatUGX, formatDateTime, formatRelative } from '../../utils/format';
 import StatusBadge from '../../components/ui/StatusBadge';
 import KpiCard from '../../components/ui/KpiCard';
+import TrendChart from '../../components/dashboard/TrendChart';
 import { CardSkeleton, TableSkeleton } from '../../components/ui/loaders';
 import { ErrorState } from '../../components/ui/states';
 import './DashboardPage.css';
@@ -81,7 +82,6 @@ export default function DashboardPage() {
   const yesterday = summary?.yesterday || {};
   const q = summary?.queues || {};
   const trend = summary?.trend || [];
-  const maxRevenue = Math.max(1, ...trend.map((d) => d.revenueUgx));
   const todayLabel = new Date().toLocaleDateString('en-UG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Kampala' });
 
   const kpis = [
@@ -206,23 +206,10 @@ export default function DashboardPage() {
             <div className="dash-col">
               <section aria-label="Last 7 days">
                 <div className="section-title">
-                  <TrendingUp size={14} aria-hidden="true" /> Last 7 days
+                  <TrendingUp size={14} aria-hidden="true" /> Business trend · last 7 days
                 </div>
-                <div className="panel panel-pad dash-trend">
-                  {trend.length === 0 ? (
-                    <p className="text-muted">No data yet.</p>
-                  ) : (
-                    <ol className="dash-trend__bars">
-                      {trend.map((d) => (
-                        <li key={d.date} title={`${d.date}: ${d.orders} orders · ${formatUGX(d.revenueUgx)}`}>
-                          <span className="dash-trend__value">{d.orders}</span>
-                          <span className="dash-trend__bar" style={{ height: `${Math.max(4, Math.round((d.revenueUgx / maxRevenue) * 100))}%` }} />
-                          <span className="dash-trend__day">{new Date(`${d.date}T12:00:00Z`).toLocaleDateString('en-UG', { weekday: 'short' })}</span>
-                        </li>
-                      ))}
-                    </ol>
-                  )}
-                  <p className="subtle-note">Bar height = order value; number = orders placed (Kampala time).</p>
+                <div className="panel panel-pad">
+                  {trend.length === 0 ? <p className="text-muted">No data yet.</p> : <TrendChart days={trend} />}
                 </div>
               </section>
 
