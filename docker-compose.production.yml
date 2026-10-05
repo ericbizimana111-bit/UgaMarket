@@ -83,6 +83,23 @@ services:
     networks:
       - internal
 
+  # Optional (recommended): Cloudflare Tunnel — public HTTPS for the shop and
+  # the admin console with NO open inbound ports on the server. In the
+  # Cloudflare dashboard (Zero Trust > Networks > Tunnels) route:
+  #   <customer-domain> -> http://web:80     <admin-domain> -> http://web:8080
+  # then start it with:  ... --profile tunnel up -d
+  tunnel:
+    image: cloudflare/cloudflared:latest
+    profiles: ["tunnel"]
+    restart: unless-stopped
+    command: ["tunnel", "--no-autoupdate", "run"]
+    environment:
+      TUNNEL_TOKEN: ${CLOUDFLARE_TUNNEL_TOKEN:-}
+    depends_on:
+      - web
+    networks:
+      - internal
+
   # Explicit, one-off migration operation (NEVER runs automatically):
   #   docker compose --env-file .env.production -f docker-compose.production.yml \
   #     --profile tools run --rm migrate

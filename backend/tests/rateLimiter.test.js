@@ -94,3 +94,24 @@ describe('CORS policy', () => {
     expect(res.headers['access-control-allow-methods']).toContain('POST');
   });
 });
+
+describe('client IP behind proxies', () => {
+  const ipApp = () => {
+    const a = express();
+    a.set('trust proxy', app.get('trust proxy'));
+    a.get('/ip', (req, res) => res.json({ ip: req.ip }));
+    return a;
+  };
+
+  test('through nginx / Cloudflare Tunnel (private hops) the real visitor IP is used', async () => {
+    // visitor 41.210.1.5 -> Cloudflare -> cloudflared (172.18.0.5) -> nginx -> API
+    const res = await request(ipApp()).get('/ip').set('X-Forwarded-For', '41.210.1.5, 172.18.0.5');
+    expect(res.body.ip).toBe('41.210.1.5');
+  });
+
+  test('a visitor cannot spoof their IP by sending X-Forwarded-For themselves', async () => {
+    // spoofed "1.2.3.4" prepended by the client; 41.210.1.5 is what the proxy saw
+    const res = await request(ipApp()).get('/ip').set('X-Forwarded-For', '1.2.3.4, 41.210.1.5, 172.18.0.5');
+    expect(res.body.ip).toBe('41.210.1.5');
+  });
+});

@@ -41,10 +41,12 @@ const {
 
 const app = express();
 
-// Trust exactly one proxy hop (the production reverse proxy) so rate limiting
-// and audit logs see real client IPs from X-Forwarded-For instead of the
-// proxy address. Harmless in local development (no proxy in front).
-app.set('trust proxy', 1);
+// Trust the reverse-proxy hops on private networks (nginx, and Cloudflare
+// Tunnel's connector when used) so rate limiting and audit logs see the real
+// client IP from X-Forwarded-For. Public addresses are never trusted, so a
+// client cannot spoof its IP. Override with TRUST_PROXY (e.g. "1") if the
+// proxy topology differs. Harmless locally (no proxy in front).
+app.set('trust proxy', process.env.TRUST_PROXY || 'loopback, linklocal, uniquelocal');
 
 // 1. Security Headers
 app.use(helmet({
