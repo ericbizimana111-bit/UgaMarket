@@ -101,11 +101,10 @@ async function quoteDelivery(address, { config = null, geometry = false } = {}) 
 }
 
 /**
- * Resolve the delivery fee for an order's fulfillment choice (integer UGX).
- * Pickup is no longer offered; for legacy callers it returns 0.
+ * Resolve the delivery fee for an order (integer UGX). Every order is
+ * delivered to the customer's address.
  */
-async function resolveDeliveryFee({ fulfillmentMethod, address }) {
-  if (fulfillmentMethod === 'PICKUP_STATION') return 0;
+async function resolveDeliveryFee({ address }) {
   const quote = await quoteDelivery(address);
   return quote.deliveryFeeUgx;
 }
@@ -151,15 +150,14 @@ async function createDeliveryForOrder(tx, order, quote = null) {
   return tx.delivery.create({
     data: {
       orderId: order.id,
-      fulfillmentType: order.deliveryType, // HOME_DELIVERY | PICKUP_STATION
+      fulfillmentType: order.deliveryType, // always HOME_DELIVERY
       status: DELIVERY_STATUSES.PENDING,
       deliveryFeeUgx: order.deliveryFee,
       distanceKm: quote ? quote.distanceKm : undefined,
       straightLineKm: quote ? quote.straightLineKm : undefined,
       etaMinutes: quote ? quote.etaMinutes : undefined,
       distanceSource: quote ? quote.distanceSource : undefined,
-      addressSnapshot: order.deliveryType === 'HOME_DELIVERY' ? order.addressSnapshot : undefined,
-      stationSnapshot: order.deliveryType === 'PICKUP_STATION' ? order.stationSnapshot : undefined,
+      addressSnapshot: order.addressSnapshot,
     },
   });
 }
@@ -181,7 +179,6 @@ function buildCustomerDeliveryResponse(delivery) {
     etaMinutes: d.etaMinutes ?? null,
     distanceSource: d.distanceSource || null,
     addressSnapshot: d.addressSnapshot || null,
-    stationSnapshot: d.stationSnapshot || null,
     scheduledAt: d.scheduledAt,
     startedAt: d.startedAt,
     completedAt: d.completedAt,
@@ -280,7 +277,6 @@ async function getDeliveryById(deliveryId) {
 /**
  * Assign (or reassign) a home delivery to an eligible staff member.
  * Transactional + row-locked. Terminal states can never be (re)assigned.
- * Pickup orders are never assigned (station-based fulfillment).
  */
 async function assignDelivery({ deliveryId, targetAdminId, actor, ipAddress = null, notes = null }) {
   return prisma.$transaction(async (tx) => {
@@ -293,9 +289,6 @@ async function assignDelivery({ deliveryId, targetAdminId, actor, ipAddress = nu
     const delivery = rows[0];
     if (!delivery) {
       throw new AppError('Delivery not found', 404);
-    }
-    if (delivery.fulfillmentType !== 'HOME_DELIVERY') {
-      throw new AppError('Pickup fulfillments are not assigned to staff', 409);
     }
     if (DELIVERY_TERMINAL_STATUSES.includes(delivery.status)) {
       throw new AppError(`Delivery in status ${delivery.status} cannot be assigned`, 409);
@@ -393,15 +386,12 @@ async function applyDeliveryStatusTransition(tx, { deliveryId, toStatus, changed
     if (!failureReason || !DELIVERY_FAILURE_REASONS.includes(failureReason)) {
       throw new AppError('A controlled failureReason is required when marking a delivery FAILED', 422);
     }
-    if (delivery.fulfillmentType === 'HOME_DELIVERY' && delivery.status !== 'OUT_FOR_DELIVERY') {
+    if (delivery.status !== 'OUT_FOR_DELIVERY') {
       throw new AppError('Home deliveries must be dispatched (OUT_FOR_DELIVERY) before failing', 409);
     }
   }
   if (toStatus === 'DELIVERED' && delivery.status !== 'OUT_FOR_DELIVERY') {
     throw new AppError('Deliveries must be OUT_FOR_DELIVERY before being marked DELIVERED', 409);
-  }
-  if (toStatus === 'PICKED_UP' && delivery.fulfillmentType !== 'PICKUP_STATION') {
-    throw new AppError('Only pickup fulfillments can reach PICKED_UP', 409);
   }
 
   const data = {
@@ -410,7 +400,7 @@ async function applyDeliveryStatusTransition(tx, { deliveryId, toStatus, changed
     scheduledAt: scheduledAt !== undefined ? scheduledAt : undefined,
   };
   if (toStatus === 'OUT_FOR_DELIVERY') data.startedAt = new Date();
-  if (toStatus === 'DELIVERED' || toStatus === 'PICKED_UP') data.completedAt = new Date();
+  if (toStatus === 'DELIVERED') data.completedAt = new Date();
   if (toStatus === 'FAILED') {
     data.failureReason = failureReason;
     data.failureMessage = failureMessage ? String(failureMessage).slice(0, 500) : null;
@@ -428,8 +418,8 @@ async function applyDeliveryStatusTransition(tx, { deliveryId, toStatus, changed
   // state exists for "assigned/ready" before the operational lifecycle), so
   // they only require the order to sit in a sane pre-condition state.
   const DELIVERY_OP_PRECONDITIONS = {
-    ASSIGNED: ['COMMITMENT_PAID', 'CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY', 'READY_FOR_PICKUP'],
-    READY: ['CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY', 'READY_FOR_PICKUP'],
+    ASSIGNED: ['COMMITMENT_PAID', 'CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY'],
+    READY: ['CONFIRMED', 'PREPARING', 'READY_FOR_DELIVERY'],
   };
 
   let orderTransition = null;
@@ -533,7 +523,7 @@ async function syncDeliveryForOrderTransition(tx, { orderId, toStatus, changedBy
   // [] = already consistent (ASSIGNED counts as consistent with pre-operational
   // order states — assignment happens during preparation). A path is applied
   // step-by-step through the SAME central transition map. Terminal order
-  // states (DELIVERED/PICKED_UP) only accept a single hop, so a dispatch that
+  // states (DELIVERED) only accept a single hop, so a dispatch that
   // never happened cannot be fabricated by one admin action.
   const consistentWith = { CONFIRMED: ['PENDING', 'ASSIGNED'], PREPARING: ['PENDING', 'ASSIGNED'] };
   if ((consistentWith[toStatus] || []).includes(delivery.status)) {
@@ -543,7 +533,7 @@ async function syncDeliveryForOrderTransition(tx, { orderId, toStatus, changedBy
   const allowed = DELIVERY_TYPE_ALLOWED_STATUSES[delivery.fulfillmentType];
   function resolveSyncSteps(from, to) {
     if (from === to) return [];
-    if (to === 'DELIVERED' || to === 'PICKED_UP') {
+    if (to === 'DELIVERED') {
       return (DELIVERY_STATUS_TRANSITIONS[from] || []).includes(to) ? [to] : null;
     }
     const queue = [[from]];
@@ -626,8 +616,7 @@ async function updateDeliveryStatus({ deliveryId, toStatus, changedByType = 'ADM
     const notify = {
       OUT_FOR_DELIVERY: { title: 'Order out for delivery', message: `Your order ${order.orderNumber} is on the way.` },
       DELIVERED: { title: 'Order delivered', message: `Your order ${order.orderNumber} has been delivered.` },
-      READY: { title: 'Ready for collection/dispatch', message: `Your order ${order.orderNumber} is ready.` },
-      PICKED_UP: { title: 'Order picked up', message: `Your order ${order.orderNumber} has been picked up.` },
+      READY: { title: 'Ready for dispatch', message: `Your order ${order.orderNumber} is packed and ready for delivery.` },
       FAILED: { title: 'Delivery attempt issue', message: `There was an issue fulfilling your order ${order.orderNumber}. We are retrying or contacting you.` },
     }[toStatus];
     if (notify && order.userId) {

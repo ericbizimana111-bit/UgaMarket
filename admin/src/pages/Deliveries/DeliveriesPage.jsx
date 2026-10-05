@@ -17,11 +17,11 @@ import './DeliveriesPage.css';
 /**
  * Fulfillment operations (DISPATCHER/ADMIN/SUPER_ADMIN).
  * Verified contract:
- *  - GET   /api/admin/deliveries?page&limit&status&fulfillmentType&orderNumber
+ *  - GET   /api/admin/deliveries?page&limit&status&orderNumber
  *          -> { success, items: [delivery+orderNumber+orderStatus], pagination }
  *  - PATCH /api/admin/deliveries/:id/assign { assignedAdminId, notes? }
  *  - PATCH /api/admin/deliveries/:id/status { status, failureReason?, failureMessage?, notes?, scheduledAt? }
- * The backend delivery state machine + fulfillment-type guards are authoritative;
+ * The backend delivery state machine is authoritative;
  * the UI only offers statuses and lets the backend reject invalid moves (409).
  */
 const DELIVERY_STATUSES = [
@@ -30,7 +30,6 @@ const DELIVERY_STATUSES = [
   'READY',
   'OUT_FOR_DELIVERY',
   'DELIVERED',
-  'PICKED_UP',
   'FAILED',
   'CANCELLED',
 ];
@@ -52,7 +51,6 @@ export default function DeliveriesPage() {
   const [pagination, setPagination] = useState(null);
   const [page, setPage] = useState(1);
   const [status, setStatus] = useState('');
-  const [fulfillment, setFulfillment] = useState('');
   const [orderNumber, setOrderNumber] = useState('');
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
@@ -66,7 +64,6 @@ export default function DeliveriesPage() {
       params.set('page', String(page));
       params.set('limit', '20');
       if (status) params.set('status', status);
-      if (fulfillment) params.set('fulfillmentType', fulfillment);
       if (orderNumber.trim()) params.set('orderNumber', orderNumber.trim());
 
       const res = await api.get(`/admin/deliveries?${params.toString()}`);
@@ -77,7 +74,7 @@ export default function DeliveriesPage() {
     } finally {
       setLoading(false);
     }
-  }, [page, status, fulfillment, orderNumber]);
+  }, [page, status, orderNumber]);
 
   useEffect(() => {
     load();
@@ -92,16 +89,6 @@ export default function DeliveriesPage() {
           {row.orderNumber || row.orderId}
         </Link>
       ),
-    },
-    {
-      key: 'fulfillmentType',
-      header: 'Type',
-      render: (row) =>
-        row.fulfillmentType === 'PICKUP_STATION' ? (
-          <span className="badge badge--info">Pickup</span>
-        ) : (
-          <span className="badge badge--neutral">Home</span>
-        ),
     },
     {
       key: 'status',
@@ -120,12 +107,12 @@ export default function DeliveriesPage() {
       key: 'destination',
       header: 'Destination',
       render: (row) => {
-        const snap = row.addressSnapshot || row.stationSnapshot;
+        const snap = row.addressSnapshot;
         if (!snap) return '—';
         return (
           <div className="deliveries-page__dest">
             {snap.district}
-            <div className="deliveries-page__sub">{snap.streetAddress || snap.addressText}</div>
+            <div className="deliveries-page__sub">{snap.streetAddress}</div>
           </div>
         );
       },
@@ -190,18 +177,6 @@ export default function DeliveriesPage() {
               {getDeliveryStatusMeta(s).label}
             </option>
           ))}
-        </select>
-        <select
-          value={fulfillment}
-          onChange={(e) => {
-            setPage(1);
-            setFulfillment(e.target.value);
-          }}
-          aria-label="Filter by fulfillment type"
-        >
-          <option value="">All types</option>
-          <option value="HOME_DELIVERY">Home delivery</option>
-          <option value="PICKUP_STATION">Pickup station (legacy orders)</option>
         </select>
       </div>
 

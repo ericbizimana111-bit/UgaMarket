@@ -18,6 +18,7 @@ import {
 import { useAuth } from '../../Context/AuthContext';
 import { useCart } from '../../Context/CartContext';
 import { useLanguage } from '../../Context/LanguageContext';
+import useStoreInfo from '../../utils/useStoreInfo';
 import { useRealtime } from '../../Context/RealtimeContext';
 import useCategories from '../../utils/useCategories';
 import { iconFor } from '../../utils/categoryIcons';
@@ -32,6 +33,8 @@ const Navbar = () => {
   const { user, isAuthenticated, logout } = useAuth();
   const { itemCount } = useCart();
   const { t, getLocalizedField } = useLanguage();
+  // Announcement set by staff in the admin console (falls back to the default).
+  const { store } = useStoreInfo();
   const { categories } = useCategories();
   const { unreadNotifications, unreadMessages } = useRealtime();
   const location = useLocation();
@@ -120,7 +123,7 @@ const Navbar = () => {
       {/* Utility bar (desktop) */}
       <div className="um-topbar">
         <div className="container um-topbar__inner">
-          <p className="um-topbar__msg">{t('topbarMessage')}</p>
+          <p className="um-topbar__msg">{store?.announcement || t('topbarMessage')}</p>
           <div className="um-topbar__right">
             <Link to="/how-it-works" className="um-topbar__link">
               <HelpCircle size={14} aria-hidden="true" /> {t('howItWorksShort')}

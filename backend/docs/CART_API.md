@@ -1,5 +1,7 @@
 # Cart & Checkout Preparation API (Phase 4)
 
+> **Update (Oct 2026): UgaMarket is delivery-only.** Pickup stations, `PICKUP_STATION`, `READY_FOR_PICKUP`, `PICKED_UP`, `PICKUP_STATION_ISSUE` and `stationSnapshot` were removed (migration `20261005000000_remove_pickup_stations`). Every order is `HOME_DELIVERY` to a validated address; requests sending `PICKUP_STATION` are refused with `400`. Pickup sections below are historical.
+
 All endpoints require a **customer JWT**: `Authorization: Bearer <customer_token>`.
 Admin tokens are a separate auth context and are rejected on these routes.
 

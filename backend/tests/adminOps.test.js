@@ -121,6 +121,9 @@ describe('Admin operations', () => {
       expect(res.body.data.trend).toHaveLength(7);
       expect(res.body.data.queues).toHaveProperty('unreadMessages');
       expect(res.body.data.queues).toHaveProperty('openServiceRequests');
+      // Day-over-day comparison + daily collections feed the KPI cards.
+      expect(res.body.data.yesterday).toEqual({ orders: expect.any(Number), paymentsCollectedUgx: expect.any(Number) });
+      expect(res.body.data.trend[6]).toHaveProperty('paymentsUgx');
     });
 
     test('order route returns distance, ETA, geometry and tariff comparison', async () => {

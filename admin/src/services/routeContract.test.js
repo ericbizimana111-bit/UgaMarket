@@ -138,6 +138,9 @@ describe('admin ↔ backend route contract', () => {
     expect(templates).toContain('POST /api/admin/chat/conversations/:id/messages');
     expect(templates).toContain('PATCH /api/admin/services/requests/:id');
     expect(templates).toContain('GET /api/admin/orders/:id/route');
+    expect(templates).toContain('PUT /api/admin/content/store');
+    expect(templates).toContain('PUT /api/admin/content/faqs/:id');
+    expect(templates).toContain('POST /api/admin/staff/:id/reset-password');
   });
 
   test('backend route extraction is non-trivial', () => {

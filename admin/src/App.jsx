@@ -19,6 +19,8 @@ import ServiceRequestDetailPage from './pages/Services/ServiceRequestDetailPage'
 import ServicesCatalogPage from './pages/Services/ServicesCatalogPage';
 import TechniciansPage from './pages/Services/TechniciansPage';
 import SettingsPage from './pages/Settings/SettingsPage';
+import StorefrontPage from './pages/Storefront/StorefrontPage';
+import StaffPage from './pages/Staff/StaffPage';
 
 const PAGE_TITLES = {
   '/': 'Dashboard',
@@ -34,7 +36,9 @@ const PAGE_TITLES = {
   '/service-requests': 'Service Bookings',
   '/services': 'Service Catalogue',
   '/technicians': 'Technicians',
-  '/settings': 'Store Settings',
+  '/settings': 'Delivery & Deposit',
+  '/storefront': 'Storefront Content',
+  '/staff': 'Staff Accounts',
 };
 
 /** Blocked route while the session is being restored (prevents login flash). */
@@ -92,6 +96,8 @@ export default function App() {
         <Route path="messages" element={<MessagesPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="settings" element={<SettingsPage />} />
+        <Route path="storefront" element={<StorefrontPage />} />
+        <Route path="staff" element={<StaffPage />} />
         <Route path="payments" element={<PaymentsPage />} />
         <Route path="customers" element={<CustomersPage />} />
       </Route>

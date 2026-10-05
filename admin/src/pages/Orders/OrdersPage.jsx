@@ -115,15 +115,12 @@ export default function OrdersPage() {
     {
       key: 'deliverTo',
       header: 'Deliver to',
-      render: (row) =>
-        row.fulfillment?.method === 'PICKUP_STATION' ? (
-          <span className="text-muted">Pickup (legacy)</span>
-        ) : (
-          <div>
-            <MapPin size={12} aria-hidden="true" /> {[row.fulfillment?.address?.division, row.fulfillment?.address?.district].filter(Boolean).join(', ') || '—'}
-            <div className="orders-page__sub">{row.fulfillment?.distanceKm != null ? `${formatKm(row.fulfillment.distanceKm)} away` : ''}</div>
-          </div>
-        ),
+      render: (row) => (
+        <div>
+          <MapPin size={12} aria-hidden="true" /> {[row.fulfillment?.address?.division, row.fulfillment?.address?.district].filter(Boolean).join(', ') || '—'}
+          <div className="orders-page__sub">{row.fulfillment?.distanceKm != null ? `${formatKm(row.fulfillment.distanceKm)} away` : ''}</div>
+        </div>
+      ),
     },
     { key: 'createdAt', header: 'Placed', render: (row) => formatDateTime(row.createdAt) },
     {

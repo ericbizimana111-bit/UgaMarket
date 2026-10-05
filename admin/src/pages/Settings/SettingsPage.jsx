@@ -135,7 +135,7 @@ export default function SettingsPage() {
   return (
     <div>
       <PageHeader
-        title="Store settings"
+        title="Delivery & deposit settings"
         description={canEdit ? 'Control where deliveries leave from, how delivery is priced and the deposit customers pay.' : 'Read-only: only admins can change store settings.'}
       />
 

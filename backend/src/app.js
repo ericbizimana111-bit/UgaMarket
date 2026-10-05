@@ -29,6 +29,9 @@ const adminCustomerRoutes = require('./routes/adminCustomer.routes');
 const adminSettingsRoutes = require('./routes/adminSettings.routes');
 const adminDashboardRoutes = require('./routes/adminDashboard.routes');
 const realtimeRoutes = require('./routes/realtime.routes');
+const storeRoutes = require('./routes/store.routes');
+const adminStoreRoutes = require('./routes/adminStore.routes');
+const adminStaffRoutes = require('./routes/adminStaff.routes');
 const { customerChatRoutes, adminChatRoutes } = require('./routes/chat.routes');
 const {
   publicServiceRoutes,
@@ -137,6 +140,12 @@ app.use('/api/admin/chat', adminChatRoutes);
 app.use('/api/services', publicServiceRoutes);
 app.use('/api/service-requests', customerServiceRequestRoutes);
 app.use('/api/admin/services', adminServiceRoutes);
+
+// 10h. Storefront content (contact details, announcement, FAQs) and staff
+// accounts, all managed from the admin console
+app.use('/api/store', storeRoutes);
+app.use('/api/admin/content', adminStoreRoutes);
+app.use('/api/admin/staff', adminStaffRoutes);
 
 // 10h. Admin customer visibility, store settings, dashboard summary
 app.use('/api/admin/customers', adminCustomerRoutes);

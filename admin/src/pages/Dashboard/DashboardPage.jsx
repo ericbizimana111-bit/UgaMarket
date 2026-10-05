@@ -4,18 +4,21 @@ import {
   AlertTriangle,
   ArrowRight,
   CalendarCheck,
+  CalendarDays,
   MessageCircle,
   Package,
+  Plus,
   ShoppingBag,
   TrendingUp,
   Truck,
   Wallet,
 } from 'lucide-react';
 import api from '../../services/api';
-import { useAuth } from '../../context/AuthContext';
+import { CATALOG_ROLES, hasRole, useAuth } from '../../context/AuthContext';
 import { useRealtimeEvent } from '../../context/RealtimeContext';
 import { formatUGX, formatDateTime, formatRelative } from '../../utils/format';
 import StatusBadge from '../../components/ui/StatusBadge';
+import KpiCard from '../../components/ui/KpiCard';
 import { CardSkeleton, TableSkeleton } from '../../components/ui/loaders';
 import { ErrorState } from '../../components/ui/states';
 import './DashboardPage.css';
@@ -27,8 +30,17 @@ import './DashboardPage.css';
  *  - GET /api/admin/services/requests?limit=5 recent home-service bookings
  * Refreshes itself when a new order, payment or booking notification arrives.
  */
+const count = (n) => (n ?? 0).toLocaleString('en-UG');
+// Large shilling amounts are abbreviated so the headline stays on one line.
+const money = (n) => {
+  const v = Math.round(Number(n) || 0);
+  if (v >= 100000000) return `${(v / 1000000).toFixed(0)}M`;
+  if (v >= 10000000) return `${(v / 1000000).toFixed(1)}M`;
+  return v.toLocaleString('en-UG');
+};
+
 export default function DashboardPage() {
-  const { admin } = useAuth();
+  const { admin, role } = useAuth();
   const [summary, setSummary] = useState(null);
   const [recentOrders, setRecentOrders] = useState([]);
   const [recentBookings, setRecentBookings] = useState([]);
@@ -66,17 +78,82 @@ export default function DashboardPage() {
   const firstName = admin?.fullName?.split(' ')[0] || 'Admin';
 
   const today = summary?.today || {};
+  const yesterday = summary?.yesterday || {};
   const q = summary?.queues || {};
   const trend = summary?.trend || [];
   const maxRevenue = Math.max(1, ...trend.map((d) => d.revenueUgx));
+  const todayLabel = new Date().toLocaleDateString('en-UG', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Kampala' });
 
   const kpis = [
-    { label: "Today's orders", value: (today.orders ?? 0).toLocaleString('en-UG'), hint: `${formatUGX(today.orderValueUgx)} order value`, icon: ShoppingBag, tone: 'primary', to: '/orders' },
-    { label: 'Collected today', value: formatUGX(today.paymentsCollectedUgx), hint: 'MTN MoMo & Airtel Money', icon: Wallet, tone: 'success', to: '/payments' },
-    { label: 'Orders to confirm', value: (q.ordersNeedingAction ?? 0).toLocaleString('en-UG'), hint: 'Deposit paid, awaiting staff', icon: AlertTriangle, tone: q.ordersNeedingAction ? 'warning' : 'success', to: '/orders?status=COMMITMENT_PAID' },
-    { label: 'Active deliveries', value: (q.activeDeliveries ?? 0).toLocaleString('en-UG'), hint: 'Assigned, ready or on the road', icon: Truck, tone: 'info', to: '/deliveries' },
-    { label: 'Service bookings', value: (q.openServiceRequests ?? 0).toLocaleString('en-UG'), hint: `${q.newServiceRequests ?? 0} new request(s)`, icon: CalendarCheck, tone: q.newServiceRequests ? 'warning' : 'info', to: '/service-requests' },
-    { label: 'Unread messages', value: (q.unreadMessages ?? 0).toLocaleString('en-UG'), hint: 'From customers', icon: MessageCircle, tone: q.unreadMessages ? 'danger' : 'success', to: '/messages' },
+    {
+      label: "Today's orders",
+      icon: ShoppingBag,
+      tone: 'primary',
+      to: '/orders',
+      cta: 'Orders',
+      value: count(today.orders),
+      current: today.orders ?? 0,
+      previous: yesterday.orders ?? 0,
+      series: trend.map((d) => d.orders),
+      hint: `${formatUGX(today.orderValueUgx)} value`,
+    },
+    {
+      label: 'Collected today',
+      icon: Wallet,
+      tone: 'success',
+      to: '/payments',
+      cta: 'Payments',
+      unit: 'UGX',
+      value: money(today.paymentsCollectedUgx),
+      current: today.paymentsCollectedUgx ?? 0,
+      previous: yesterday.paymentsCollectedUgx ?? 0,
+      series: trend.map((d) => d.paymentsUgx ?? 0),
+      hint: 'MoMo & Airtel',
+    },
+    {
+      label: 'Orders to confirm',
+      icon: AlertTriangle,
+      tone: q.ordersNeedingAction ? 'warning' : 'success',
+      to: '/orders?status=COMMITMENT_PAID',
+      cta: 'Review',
+      value: count(q.ordersNeedingAction),
+      status: q.ordersNeedingAction ? { label: 'Action needed', tone: 'warning' } : { label: 'All clear', tone: 'success' },
+      hint: 'Deposit paid',
+    },
+    {
+      label: 'Active deliveries',
+      icon: Truck,
+      tone: 'info',
+      to: '/deliveries',
+      cta: 'Track',
+      value: count(q.activeDeliveries),
+      status: q.activeDeliveries ? { label: 'In progress', tone: 'info' } : { label: 'None on the road', tone: 'neutral' },
+      hint: 'Assigned, ready or out',
+    },
+    {
+      label: 'Service bookings',
+      icon: CalendarCheck,
+      tone: q.newServiceRequests ? 'warning' : 'info',
+      to: '/service-requests',
+      cta: 'Bookings',
+      value: count(q.openServiceRequests),
+      status: q.newServiceRequests
+        ? { label: `${count(q.newServiceRequests)} new to confirm`, tone: 'warning' }
+        : q.openServiceRequests
+          ? { label: 'In progress', tone: 'info' }
+          : { label: 'All clear', tone: 'success' },
+      hint: 'Open jobs',
+    },
+    {
+      label: 'Unread messages',
+      icon: MessageCircle,
+      tone: q.unreadMessages ? 'danger' : 'success',
+      to: '/messages',
+      cta: 'Inbox',
+      value: count(q.unreadMessages),
+      status: q.unreadMessages ? { label: 'Reply needed', tone: 'danger' } : { label: 'All read', tone: 'success' },
+      hint: 'From customers',
+    },
   ];
 
   const attention = [
@@ -89,12 +166,30 @@ export default function DashboardPage() {
 
   return (
     <div>
-      <div className="dash-greeting">
-        <h1>
-          {greeting}, {firstName}
-        </h1>
-        <p>Live overview of orders, deliveries, home services and customer messages.</p>
-      </div>
+      <header className="dash-head">
+        <div>
+          <p className="dash-head__date">
+            <CalendarDays size={14} aria-hidden="true" /> {todayLabel}
+            <span className="dash-head__live" title="Updates automatically when orders, payments or bookings arrive">
+              <span aria-hidden="true" /> Live
+            </span>
+          </p>
+          <h1>
+            {greeting}, {firstName}
+          </h1>
+          <p className="dash-head__sub">Here is what is happening across orders, deliveries, home services and customer messages today.</p>
+        </div>
+        <div className="dash-head__actions">
+          <Link to="/orders" className="btn btn--secondary">
+            <ShoppingBag size={15} aria-hidden="true" /> All orders
+          </Link>
+          {hasRole(role, CATALOG_ROLES) && (
+            <Link to="/products/new" className="btn btn--primary">
+              <Plus size={15} aria-hidden="true" /> Add product
+            </Link>
+          )}
+        </div>
+      </header>
 
       {error ? (
         <ErrorState message={error} onRetry={load} />
@@ -103,18 +198,9 @@ export default function DashboardPage() {
           {loading ? (
             <CardSkeleton count={6} />
           ) : (
-            <div className="kpi-grid kpi-grid--six">
+            <div className="kpi-board">
               {kpis.map((kpi) => (
-                <Link key={kpi.label} to={kpi.to} className={`kpi-card kpi-card--link kpi-card--accent-${kpi.tone}`}>
-                  <span className={`kpi-card__icon kpi-card__icon--${kpi.tone}`}>
-                    <kpi.icon size={18} aria-hidden="true" />
-                  </span>
-                  <div>
-                    <div className="kpi-card__label">{kpi.label}</div>
-                    <div className="kpi-card__value">{kpi.value}</div>
-                    <div className="kpi-card__hint">{kpi.hint}</div>
-                  </div>
-                </Link>
+                <KpiCard key={kpi.label} {...kpi} />
               ))}
             </div>
           )}

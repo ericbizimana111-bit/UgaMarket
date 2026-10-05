@@ -25,12 +25,10 @@ import './OrderDetailPage.css';
 const SUGGESTED_NEXT = {
   COMMITMENT_PAID: ['CONFIRMED', 'CANCELLED'],
   CONFIRMED: ['PREPARING', 'CANCELLED'],
-  PREPARING: ['READY_FOR_DELIVERY', 'READY_FOR_PICKUP', 'CANCELLED'],
+  PREPARING: ['READY_FOR_DELIVERY', 'CANCELLED'],
   READY_FOR_DELIVERY: ['OUT_FOR_DELIVERY'],
-  READY_FOR_PICKUP: ['PICKED_UP'],
   OUT_FOR_DELIVERY: ['DELIVERED', 'DELIVERY_FAILED'],
   DELIVERED: ['BALANCE_PAID'],
-  PICKED_UP: ['BALANCE_PAID'],
   BALANCE_PAID: ['COMPLETED'],
   PAYMENT_FAILED: ['CANCELLED', 'PENDING_PAYMENT'],
   DELIVERY_FAILED: ['OUT_FOR_DELIVERY', 'REFUNDED'],
@@ -42,10 +40,8 @@ const STATUS_LABELS = {
   CONFIRMED: 'Confirmed',
   PREPARING: 'Preparing',
   READY_FOR_DELIVERY: 'Ready for Delivery',
-  READY_FOR_PICKUP: 'Ready for Pickup',
   OUT_FOR_DELIVERY: 'Out for Delivery',
   DELIVERED: 'Delivered',
-  PICKED_UP: 'Picked Up',
   BALANCE_PAID: 'Balance Paid',
   COMPLETED: 'Completed',
   CANCELLED: 'Cancelled',
@@ -153,9 +149,7 @@ export default function OrderDetailPage() {
   }
 
   const pricing = order.pricing || {};
-  const isHome = order.fulfillment?.method === 'HOME_DELIVERY';
-  // Delivery orders never offer the legacy pickup branch.
-  const suggestions = (SUGGESTED_NEXT[order.status] || []).filter((s) => (isHome ? s !== 'READY_FOR_PICKUP' : s !== 'READY_FOR_DELIVERY'));
+  const suggestions = SUGGESTED_NEXT[order.status] || [];
   const addr = order.fulfillment?.address || {};
   const terminal = suggestions.length === 0;
 
@@ -173,7 +167,7 @@ export default function OrderDetailPage() {
           <h1 className="mono">{order.orderNumber}</h1>
           <p className="order-detail__meta">
             Placed {formatDateTime(order.createdAt)} ·{' '}
-            {isHome ? 'Home Delivery' : 'Pickup Station'}
+            Home Delivery
           </p>
         </div>
         <div className="order-detail__status">
@@ -257,108 +251,93 @@ export default function OrderDetailPage() {
           </section>
 
           <section className="panel panel-pad detail-block" aria-label="Fulfillment">
-            <h3>{isHome ? 'Delivery location' : 'Pickup station (legacy order)'}</h3>
-            {isHome ? (
-              <>
-                <div className="deliver-to">
-                  <div className="deliver-to__main">
-                    <strong>
-                      <MapPin size={15} aria-hidden="true" /> {[addr.division, addr.district].filter(Boolean).join(', ') || addr.district}
-                      {addr.region && <span className="text-muted"> · {addr.region.toLowerCase()} region</span>}
-                    </strong>
-                    <p>{addr.streetAddress}</p>
-                    {addr.landmark && (
-                      <p className="deliver-to__line">
-                        <Landmark size={14} aria-hidden="true" /> {addr.landmark}
-                      </p>
-                    )}
-                    {addr.formattedAddress && <p className="text-muted deliver-to__formatted">{addr.formattedAddress}</p>}
-                    <div className="deliver-to__badges">
-                      {addr.isVerified ? (
-                        <span className="badge badge--success">
-                          <BadgeCheck size={12} aria-hidden="true" /> Location verified on map
-                        </span>
-                      ) : addr.latitude != null ? (
-                        <span className="badge badge--warning">Pin validated offline — call to confirm</span>
-                      ) : (
-                        <span className="badge badge--danger">
-                          <TriangleAlert size={12} aria-hidden="true" /> No map pin (legacy address)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                  <div className="deliver-to__contact">
-                    <span className="text-muted">Deliver to</span>
-                    <strong>{addr.recipientName || order.customer?.fullName}</strong>
-                    {(addr.contactPhone || order.customer?.phone) && (
-                      <a href={`tel:${addr.contactPhone || order.customer?.phone}`} className="btn btn--secondary btn--sm">
-                        <Phone size={13} aria-hidden="true" /> {addr.contactPhone || order.customer?.phone}
-                      </a>
-                    )}
-                    {addr.latitude != null && (
-                      <a href={directionsUrl(addr.latitude, addr.longitude)} target="_blank" rel="noopener noreferrer" className="btn btn--primary btn--sm">
-                        <ExternalLink size={13} aria-hidden="true" /> Open directions
-                      </a>
+            <h3>Delivery location</h3>
+              <div className="deliver-to">
+                <div className="deliver-to__main">
+                  <strong>
+                    <MapPin size={15} aria-hidden="true" /> {[addr.division, addr.district].filter(Boolean).join(', ') || addr.district}
+                    {addr.region && <span className="text-muted"> · {addr.region.toLowerCase()} region</span>}
+                  </strong>
+                  <p>{addr.streetAddress}</p>
+                  {addr.landmark && (
+                    <p className="deliver-to__line">
+                      <Landmark size={14} aria-hidden="true" /> {addr.landmark}
+                    </p>
+                  )}
+                  {addr.formattedAddress && <p className="text-muted deliver-to__formatted">{addr.formattedAddress}</p>}
+                  <div className="deliver-to__badges">
+                    {addr.isVerified ? (
+                      <span className="badge badge--success">
+                        <BadgeCheck size={12} aria-hidden="true" /> Location verified on map
+                      </span>
+                    ) : addr.latitude != null ? (
+                      <span className="badge badge--warning">Pin validated offline — call to confirm</span>
+                    ) : (
+                      <span className="badge badge--danger">
+                        <TriangleAlert size={12} aria-hidden="true" /> No map pin (legacy address)
+                      </span>
                     )}
                   </div>
                 </div>
-
-                {route ? (
-                  <>
-                    <AdminMap origin={route.origin} destination={route.destination} geometry={route.geometry} height={320} />
-                    <div className="route-summary">
-                      <div>
-                        <Route size={16} aria-hidden="true" />
-                        <span>
-                          <small>Road distance</small>
-                          <strong>{formatKm(route.distanceKm)}</strong>
-                        </span>
-                      </div>
-                      <div>
-                        <Timer size={16} aria-hidden="true" />
-                        <span>
-                          <small>Travel time</small>
-                          <strong>{formatMinutes(route.etaMinutes)}</strong>
-                        </span>
-                      </div>
-                      <div>
-                        <MapPin size={16} aria-hidden="true" />
-                        <span>
-                          <small>Straight line</small>
-                          <strong>{formatKm(route.straightLineKm)}</strong>
-                        </span>
-                      </div>
-                      <div>
-                        <Wallet size={16} aria-hidden="true" />
-                        <span>
-                          <small>Fee charged</small>
-                          <strong>{formatUGX(route.chargedFeeUgx)}</strong>
-                        </span>
-                      </div>
-                    </div>
-                    <p className="subtle-note">
-                      From {route.origin?.name || 'dispatch point'} ·{' '}
-                      {route.distanceSource === 'ROUTED' ? 'road route' : 'estimated from straight-line distance'}. Current tariff for this distance:{' '}
-                      <strong>{formatUGX(route.currentTariffFeeUgx)}</strong>
-                      {route.currentTariffFeeUgx !== route.chargedFeeUgx && ' (tariff or route changed since the order was placed)'}.
-                    </p>
-                  </>
-                ) : (
-                  <p className="text-muted">{routeError || 'Calculating route…'}</p>
-                )}
-              </>
-            ) : (
-              <div className="fulfillment-box">
-                <MapPin size={15} aria-hidden="true" />
-                <div>
-                  <strong>{order.fulfillment?.station?.name || 'Pickup station'}</strong>
-                  <p>
-                    {order.fulfillment?.station?.addressText}
-                    {order.fulfillment?.station?.district ? `, ${order.fulfillment.station.district}` : ''}
-                  </p>
+                <div className="deliver-to__contact">
+                  <span className="text-muted">Deliver to</span>
+                  <strong>{addr.recipientName || order.customer?.fullName}</strong>
+                  {(addr.contactPhone || order.customer?.phone) && (
+                    <a href={`tel:${addr.contactPhone || order.customer?.phone}`} className="btn btn--secondary btn--sm">
+                      <Phone size={13} aria-hidden="true" /> {addr.contactPhone || order.customer?.phone}
+                    </a>
+                  )}
+                  {addr.latitude != null && (
+                    <a href={directionsUrl(addr.latitude, addr.longitude)} target="_blank" rel="noopener noreferrer" className="btn btn--primary btn--sm">
+                      <ExternalLink size={13} aria-hidden="true" /> Open directions
+                    </a>
+                  )}
                 </div>
               </div>
-            )}
+
+              {route ? (
+                <>
+                  <AdminMap origin={route.origin} destination={route.destination} geometry={route.geometry} height={320} />
+                  <div className="route-summary">
+                    <div>
+                      <Route size={16} aria-hidden="true" />
+                      <span>
+                        <small>Road distance</small>
+                        <strong>{formatKm(route.distanceKm)}</strong>
+                      </span>
+                    </div>
+                    <div>
+                      <Timer size={16} aria-hidden="true" />
+                      <span>
+                        <small>Travel time</small>
+                        <strong>{formatMinutes(route.etaMinutes)}</strong>
+                      </span>
+                    </div>
+                    <div>
+                      <MapPin size={16} aria-hidden="true" />
+                      <span>
+                        <small>Straight line</small>
+                        <strong>{formatKm(route.straightLineKm)}</strong>
+                      </span>
+                    </div>
+                    <div>
+                      <Wallet size={16} aria-hidden="true" />
+                      <span>
+                        <small>Fee charged</small>
+                        <strong>{formatUGX(route.chargedFeeUgx)}</strong>
+                      </span>
+                    </div>
+                  </div>
+                  <p className="subtle-note">
+                    From {route.origin?.name || 'dispatch point'} ·{' '}
+                    {route.distanceSource === 'ROUTED' ? 'road route' : 'estimated from straight-line distance'}. Current tariff for this distance:{' '}
+                    <strong>{formatUGX(route.currentTariffFeeUgx)}</strong>
+                    {route.currentTariffFeeUgx !== route.chargedFeeUgx && ' (tariff or route changed since the order was placed)'}.
+                  </p>
+                </>
+              ) : (
+                <p className="text-muted">{routeError || 'Calculating route…'}</p>
+              )}
           </section>
 
           <section className="panel panel-pad detail-block" aria-label="Status history">

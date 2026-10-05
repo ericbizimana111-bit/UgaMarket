@@ -45,10 +45,8 @@ const ORDER_STATUS_META = {
   CONFIRMED: { label: 'Confirmed', tone: 'info' },
   PREPARING: { label: 'Preparing', tone: 'info' },
   READY_FOR_DELIVERY: { label: 'Ready for Delivery', tone: 'info' },
-  READY_FOR_PICKUP: { label: 'Ready for Pickup', tone: 'info' },
   OUT_FOR_DELIVERY: { label: 'Out for Delivery', tone: 'warning' },
   DELIVERED: { label: 'Delivered', tone: 'success' },
-  PICKED_UP: { label: 'Picked Up', tone: 'success' },
   BALANCE_PAID: { label: 'Balance Paid', tone: 'success' },
   COMPLETED: { label: 'Completed', tone: 'success' },
   CANCELLED: { label: 'Cancelled', tone: 'danger' },
@@ -63,7 +61,6 @@ const DELIVERY_STATUS_META = {
   READY: { label: 'Ready', tone: 'info' },
   OUT_FOR_DELIVERY: { label: 'Out for Delivery', tone: 'warning' },
   DELIVERED: { label: 'Delivered', tone: 'success' },
-  PICKED_UP: { label: 'Picked Up', tone: 'success' },
   FAILED: { label: 'Failed', tone: 'danger' },
   CANCELLED: { label: 'Cancelled', tone: 'danger' },
 };

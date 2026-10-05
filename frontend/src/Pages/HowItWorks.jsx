@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ChevronDown, ShieldCheck, ShoppingBasket, ShoppingCart, Smartphone, Wrench } from 'lucide-react';
 import { useLanguage } from '../Context/LanguageContext';
+import useStoreInfo from '../utils/useStoreInfo';
 import './HowItWorks.css';
 
 const HowItWorks = () => {
@@ -12,7 +13,8 @@ const HowItWorks = () => {
     { n: 2, Icon: Smartphone, title: t('howStep2Title'), text: t('howLongStep2') },
     { n: 3, Icon: ShieldCheck, title: t('howStep3Title'), text: t('howLongStep3') }
   ];
-  const faqs = [1, 2, 3, 4, 5, 6].map((n) => ({ q: t(`faq${n}Q`), a: t(`faq${n}A`) }));
+  // FAQs are written by staff in the admin console and translated automatically.
+  const { faqs, loading: faqsLoading } = useStoreInfo();
 
   return (
     <div className="hiw container">
@@ -37,22 +39,26 @@ const HowItWorks = () => {
         ))}
       </ol>
 
-      <section className="hiw__faq" aria-labelledby="faq-title">
-        <h2 id="faq-title" className="section-title">
-          {t('howFaqTitle')}
-        </h2>
-        <div className="hiw__faq-list">
-          {faqs.map(({ q, a }) => (
-            <details key={q} className="hiw__qa panel">
-              <summary>
-                {q}
-                <ChevronDown size={18} aria-hidden="true" />
-              </summary>
-              <p>{a}</p>
-            </details>
-          ))}
-        </div>
-      </section>
+      {(faqsLoading || faqs.length > 0) && (
+        <section className="hiw__faq" aria-labelledby="faq-title" aria-busy={faqsLoading}>
+          <h2 id="faq-title" className="section-title">
+            {t('howFaqTitle')}
+          </h2>
+          <div className="hiw__faq-list">
+            {faqsLoading
+              ? [1, 2, 3].map((n) => <div key={n} className="hiw__qa hiw__qa--skeleton panel" aria-hidden="true" />)
+              : faqs.map(({ id, question, answer }) => (
+                  <details key={id} className="hiw__qa panel">
+                    <summary>
+                      {question}
+                      <ChevronDown size={18} aria-hidden="true" />
+                    </summary>
+                    <p>{answer}</p>
+                  </details>
+                ))}
+          </div>
+        </section>
+      )}
 
       <section className="cta hiw__cta">
         <div>

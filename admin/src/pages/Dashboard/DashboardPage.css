@@ -1,19 +1,68 @@
-.dash-greeting {
-  background: var(--brand-primary-soft);
-  border: 1px solid #CFE5D8;
-  border-radius: var(--radius-lg);
-  padding: 22px 26px;
+.dash-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
   margin-bottom: 22px;
 }
 
-.dash-greeting h1 {
-  font-size: 22px;
+.dash-head h1 {
+  font-size: 24px;
+  letter-spacing: -0.01em;
 }
 
-.dash-greeting p {
+.dash-head__date {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 6px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.dash-head__live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  margin-left: 6px;
+  padding: 1px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--success);
+  background: var(--success-soft);
+  border-radius: 999px;
+}
+
+.dash-head__live span {
+  width: 6px;
+  height: 6px;
+  background: currentColor;
+  border-radius: 50%;
+  animation: dash-live 2s ease-in-out infinite;
+}
+
+@keyframes dash-live {
+  50% { opacity: 0.3; }
+}
+
+.dash-head__sub {
+  margin-top: 4px;
   font-size: 14px;
   color: var(--text-muted);
-  margin-top: 3px;
+}
+
+.dash-head__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .dash-head__live span {
+    animation: none;
+  }
 }
 
 .dash-table {
@@ -151,24 +200,6 @@
 }
 
 /* KPI cards are links to the matching queue */
-.kpi-grid--six {
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-}
-
-.kpi-card--link {
-  color: inherit;
-  transition: border-color 0.15s ease, transform 0.15s ease;
-}
-
-.kpi-card--link:hover {
-  border-color: var(--brand-primary);
-  transform: translateY(-2px);
-}
-
-.kpi-card--link .kpi-card__value {
-  font-size: 22px;
-}
-
 .dash-col {
   display: flex;
   flex-direction: column;

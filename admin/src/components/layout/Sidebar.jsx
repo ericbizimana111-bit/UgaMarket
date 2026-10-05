@@ -11,7 +11,9 @@ import {
   MessageCircle,
   Package,
   Settings,
+  ShieldCheck,
   ShoppingBag,
+  Store,
   Truck,
   Users,
   Wallet,
@@ -69,7 +71,9 @@ const NAV_SECTIONS = [
     label: 'Finance & settings',
     items: [
       { to: '/payments', label: 'Payments', icon: Wallet, roles: OPERATIONS_ROLES },
-      { to: '/settings', label: 'Store settings', icon: Settings, roles: OPERATIONS_ROLES },
+      { to: '/settings', label: 'Delivery & deposit', icon: Settings, roles: OPERATIONS_ROLES },
+      { to: '/storefront', label: 'Storefront content', icon: Store, roles: OPERATIONS_ROLES },
+      { to: '/staff', label: 'Staff accounts', icon: ShieldCheck, roles: ['SUPER_ADMIN'] },
     ],
   },
 ];

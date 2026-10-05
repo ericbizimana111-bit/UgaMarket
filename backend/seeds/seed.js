@@ -1,6 +1,7 @@
 const { PrismaClient } = require('@prisma/client');
 const bcrypt = require('bcryptjs');
 const env = require('../src/config/env');
+const { seedProductImages } = require('./productImages');
 
 const prisma = new PrismaClient();
 
@@ -406,7 +407,7 @@ async function main() {
         priceUgx: baseProd.priceUgx,
         stockQuantity: baseProd.stockQuantity,
         unit: baseProd.unit,
-        imageUrl: baseProd.imageUrl,
+        // imageUrl is not reset on re-seed: admins may have uploaded their own photo.
         sku: baseProd.sku,
       },
       create: {
@@ -532,6 +533,10 @@ async function main() {
     });
   }
   console.log(`✅ ${merchProducts.length} general merchandise products verified.`);
+
+  // Sample photos for every seeded product (never replaces admin-uploaded photos).
+  const photos = await seedProductImages(prisma);
+  console.log(`✅ Product photos: ${photos.updated} updated, ${photos.skipped} kept (admin-uploaded).`);
 
   // 8. Home services catalogue (technicians are added by staff in the console)
   console.log('🛠️  Seeding home services catalogue...');

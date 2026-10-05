@@ -1,5 +1,5 @@
 import { describe, expect, it, beforeEach, afterEach, vi } from 'vitest';
-import { render, screen, waitFor } from '@testing-library/react';
+import { render, screen, waitFor, within } from '@testing-library/react';
 import { MemoryRouter, Routes, Route } from 'react-router-dom';
 import DashboardPage from './DashboardPage';
 import { AuthProvider } from '../../context/AuthContext';
@@ -16,6 +16,7 @@ const SUMMARY = {
   success: true,
   data: {
     today: { orders: 12, orderValueUgx: 845000, paymentsCollectedUgx: 254000, newCustomers: 3 },
+    yesterday: { orders: 10, paymentsCollectedUgx: 200000 },
     queues: {
       ordersNeedingAction: 4,
       ordersAwaitingPayment: 2,
@@ -118,7 +119,17 @@ describe('DashboardPage (summary contract)', () => {
 
     await waitFor(() => expect(screen.getByText('UM-20261004-123456')).toBeInTheDocument());
     expect(screen.getByText("Today's orders")).toBeInTheDocument();
-    expect(screen.getByText('UGX 254,000')).toBeInTheDocument(); // collected today
+    // Collected today: unit + amount, with day-over-day change (+27%).
+    const collected = screen.getByRole('link', { name: /Collected today/i });
+    expect(within(collected).getByText('254,000')).toBeInTheDocument();
+    expect(within(collected).getByText('UGX')).toBeInTheDocument();
+    expect(within(collected).getByText(/27% vs yesterday/)).toBeInTheDocument();
+    // Today's orders: 12 vs 10 yesterday = +20%.
+    expect(within(screen.getByRole('link', { name: /Today's orders/i })).getByText(/20% vs yesterday/)).toBeInTheDocument();
+    // Queue cards say what the number means.
+    expect(within(screen.getByRole('link', { name: /Orders to confirm/i })).getByText('Action needed')).toBeInTheDocument();
+    expect(within(screen.getByRole('link', { name: /Unread messages/i })).getByText('Reply needed')).toBeInTheDocument();
+    expect(within(screen.getByRole('link', { name: /Service bookings/i })).getByText('2 new to confirm')).toBeInTheDocument();
     expect(screen.getByText('4 paid order(s) waiting to be confirmed')).toBeInTheDocument();
     expect(screen.getByText('7 unread customer message(s)')).toBeInTheDocument();
     expect(screen.getByText('2 new service booking(s) to confirm')).toBeInTheDocument();

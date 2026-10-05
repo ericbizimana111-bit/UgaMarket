@@ -17,10 +17,8 @@ const statusEnum = z.enum([
   'CONFIRMED',
   'PREPARING',
   'READY_FOR_DELIVERY',
-  'READY_FOR_PICKUP',
   'OUT_FOR_DELIVERY',
   'DELIVERED',
-  'PICKED_UP',
   'BALANCE_PAID',
   'COMPLETED',
   'CANCELLED',
@@ -31,11 +29,10 @@ const statusEnum = z.enum([
 
 // UgaMarket is delivery-only: every order goes to a validated customer
 // address. fulfillmentMethod is optional for backwards compatibility but
-// may only be HOME_DELIVERY; pickup requests are refused with a clear message.
+// may only be HOME_DELIVERY; anything else (e.g. an old client still sending
+// PICKUP_STATION) is refused with a clear message.
 const deliveryOnlyMethod = z
-  .enum(['HOME_DELIVERY', 'PICKUP_STATION'], {
-    errorMap: () => ({ message: 'fulfillmentMethod must be HOME_DELIVERY' }),
-  })
+  .string({ invalid_type_error: 'fulfillmentMethod must be HOME_DELIVERY' })
   .optional()
   .default('HOME_DELIVERY')
   .refine((m) => m === 'HOME_DELIVERY', {
@@ -50,7 +47,6 @@ const createOrderSchema = {
       notes: z.string().trim().max(1000).optional(),
       language: orderLanguageSchema,
       // Mass-assignment protection: these are ALWAYS server-derived and stripped
-      pickupStationId: z.unknown().optional(),
       userId: z.unknown().optional(),
       orderNumber: z.unknown().optional(),
       status: z.unknown().optional(),
@@ -85,7 +81,7 @@ const listOrdersQuerySchema = {
     page: z.coerce.number().int().min(1).optional().default(1),
     limit: z.coerce.number().int().min(1).max(50).optional().default(10),
     status: z.string().trim().max(200).optional(),
-    fulfillmentMethod: z.enum(['HOME_DELIVERY', 'PICKUP_STATION']).optional(),
+    fulfillmentMethod: z.enum(['HOME_DELIVERY']).optional(),
     search: z.string().trim().max(100).optional(),
     district: z.string().trim().max(100).optional(),
     lang: orderLanguageSchema,

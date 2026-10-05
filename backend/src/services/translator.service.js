@@ -187,9 +187,44 @@ async function syncServiceTranslations(serviceId, { force = false } = {}) {
   });
 }
 
+async function syncFaqTranslations(faqId, { force = false } = {}) {
+  const faq = await prisma.faq.findUnique({ where: { id: faqId } });
+  if (!faq) return;
+  const existing = (faq.translations && typeof faq.translations === 'object') ? faq.translations : {};
+  const targets = TARGET_LANGUAGES.filter((lang) => force || !existing[lang]);
+  if (targets.length === 0) return;
+  const translated = await translateFields({ name: faq.questionEn, description: faq.answerEn }, targets);
+  if (Object.keys(translated).length === 0) return;
+  await prisma.faq.update({
+    where: { id: faqId },
+    data: { translations: { ...(force ? {} : existing), ...translated } },
+  });
+}
+
+// Store top-bar announcement (single row, id 1).
+async function syncStoreTranslations({ force = false } = {}) {
+  const store = await prisma.storeProfile.findUnique({ where: { id: 1 } });
+  if (!store || !store.announcement) return;
+  const existing = (store.announcementTranslations && typeof store.announcementTranslations === 'object') ? store.announcementTranslations : {};
+  const targets = TARGET_LANGUAGES.filter((lang) => force || !existing[lang]);
+  if (targets.length === 0) return;
+  const result = {};
+  for (const lang of targets) {
+    const text = await translateText(store.announcement, lang);
+    if (text) result[lang] = text.slice(0, 200);
+  }
+  if (Object.keys(result).length === 0) return;
+  await prisma.storeProfile.update({
+    where: { id: 1 },
+    data: { announcementTranslations: { ...(force ? {} : existing), ...result } },
+  });
+}
+
 const scheduleProduct = (id, opts) => runInBackground(`product:${id}`, () => syncProductTranslations(id, opts));
 const scheduleCategory = (id, opts) => runInBackground(`category:${id}`, () => syncCategoryTranslations(id, opts));
 const scheduleService = (id, opts) => runInBackground(`service:${id}`, () => syncServiceTranslations(id, opts));
+const scheduleFaq = (id, opts) => runInBackground(`faq:${id}`, () => syncFaqTranslations(id, opts));
+const scheduleStore = (opts) => runInBackground('store', () => syncStoreTranslations(opts));
 
 /**
  * Lazy backfill: when a shopper browses in a language an item has no
@@ -216,5 +251,9 @@ module.exports = {
   scheduleProduct,
   scheduleCategory,
   scheduleService,
+  syncFaqTranslations,
+  syncStoreTranslations,
+  scheduleFaq,
+  scheduleStore,
   backfillMissing,
 };

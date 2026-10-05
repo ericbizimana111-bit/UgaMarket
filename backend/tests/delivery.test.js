@@ -207,7 +207,8 @@ describe('Phase 7 Delivery & Fulfillment', () => {
       expect(delivery.status).toBe('PENDING');
       expect(delivery.deliveryFeeUgx).toBe(order.pricing.deliveryFeeUgx);
       expect(delivery.addressSnapshot).toMatchObject({ streetAddress: '7 Fulfillment Way' });
-      expect(delivery.stationSnapshot).toBeNull();
+      // Delivery-only: pickup station data no longer exists anywhere
+      expect(delivery).not.toHaveProperty('stationSnapshot');
       // No internal dispatcher metadata leaks to customers
       expect(delivery).not.toHaveProperty('assignedAdmin');
       expect(delivery).not.toHaveProperty('notes');
@@ -412,12 +413,12 @@ describe('Phase 7 Delivery & Fulfillment', () => {
         .send({ status: 'DELIVERED' });
       expect(bad.statusCode).toBe(409);
 
-      // PICKED_UP is not valid for HOME_DELIVERY
-      const wrongType = await request(app)
+      // The retired pickup status is no longer a valid delivery status
+      const retired = await request(app)
         .patch(`/api/admin/deliveries/${deliveryId}/status`)
         .set('Authorization', `Bearer ${adminToken}`)
         .send({ status: 'PICKED_UP' });
-      expect([409, 422]).toContain(wrongType.statusCode);
+      expect(retired.statusCode).toBe(400);
 
       // Unknown status is a validation error
       const unknown = await request(app)

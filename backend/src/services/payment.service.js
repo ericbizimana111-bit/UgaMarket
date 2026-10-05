@@ -116,7 +116,7 @@ async function calculateOrderBalance(tx, orderId) {
 // COMPLETION GUARD (Centralized service-level check)
 // Verifies all business and financial prerequisites for completion:
 // - commitment payment completed
-// - fulfillment completed (DELIVERED for home delivery, PICKED_UP for station)
+// - fulfillment completed (delivery DELIVERED)
 // - balance fully paid (balanceDue === 0)
 // - order not cancelled or refunded
 // - order not already completed
@@ -156,11 +156,8 @@ async function canCompleteOrder(tx, orderId) {
   if (!delivery) {
     return { ok: false, reason: 'No fulfillment record found for order' };
   }
-  if (order.deliveryType === 'HOME_DELIVERY' && delivery.status !== 'DELIVERED') {
+  if (delivery.status !== 'DELIVERED') {
     return { ok: false, reason: `Home delivery must be DELIVERED (current: ${delivery.status})` };
-  }
-  if (order.deliveryType === 'PICKUP_STATION' && delivery.status !== 'PICKED_UP') {
-    return { ok: false, reason: `Pickup station delivery must be PICKED_UP (current: ${delivery.status})` };
   }
 
   // 3. Balance verification
@@ -177,7 +174,7 @@ async function canCompleteOrder(tx, orderId) {
 
 // ============================================================
 // COMPLETE ORDER IF ELIGIBLE (Zero-balance order completion)
-// Transitions DELIVERED/PICKED_UP -> BALANCE_PAID -> COMPLETED
+// Transitions DELIVERED -> BALANCE_PAID -> COMPLETED
 // without creating fake financial records.
 // ============================================================
 async function completeOrderIfEligible(tx, orderId, { changedByType = 'SYSTEM', changedById = null, notes = null } = {}) {
@@ -187,8 +184,8 @@ async function completeOrderIfEligible(tx, orderId, { changedByType = 'SYSTEM', 
   }
 
   const order = guard.order;
-  // If order is currently in DELIVERED or PICKED_UP, transition to BALANCE_PAID
-  if (['DELIVERED', 'PICKED_UP'].includes(order.status)) {
+  // If order is currently DELIVERED, transition to BALANCE_PAID
+  if (order.status === 'DELIVERED') {
     await applyOrderStatusTransition(tx, {
       orderId: order.id,
       toStatus: 'BALANCE_PAID',
@@ -475,27 +472,18 @@ async function initiateBalancePayment(userId, orderId, options = {}) {
     }
 
     // 4. Fulfillment eligibility boundary:
-    //    Home delivery requires DELIVERED status on both order and delivery.
-    //    Pickup station requires PICKED_UP status on both order and delivery.
+    //    Requires DELIVERED status on both order and delivery.
     const delivery = order.delivery;
     if (!delivery) {
       throw new AppError('Fulfillment record not found for this order', 404);
     }
 
-    const isHomeFulfillmentComplete =
-      order.deliveryType === 'HOME_DELIVERY' &&
-      order.status === 'DELIVERED' &&
-      delivery.status === 'DELIVERED';
+    const isFulfillmentComplete = order.status === 'DELIVERED' && delivery.status === 'DELIVERED';
 
-    const isPickupFulfillmentComplete =
-      order.deliveryType === 'PICKUP_STATION' &&
-      order.status === 'PICKED_UP' &&
-      delivery.status === 'PICKED_UP';
-
-    if (!isHomeFulfillmentComplete && !isPickupFulfillmentComplete) {
+    if (!isFulfillmentComplete) {
       throw new AppError(
         `Order is not eligible for balance payment. Fulfillment must be completed first ` +
-          `(Home delivery must be DELIVERED; Pickup station must be PICKED_UP). Current order status: ${order.status}`,
+          `(the order must be DELIVERED). Current order status: ${order.status}`,
         409
       );
     }
@@ -616,7 +604,7 @@ async function initiatePayment(userId, orderId, { purpose, method } = {}) {
     throw new AppError('Order not found', 404);
   }
 
-  if (['DELIVERED', 'PICKED_UP'].includes(order.status)) {
+  if (order.status === 'DELIVERED') {
     return initiateBalancePayment(userId, orderId, { method });
   }
   return initiateCommitmentPayment(userId, orderId, { method });
@@ -737,8 +725,8 @@ async function processWebhook(rawBody, headers) {
           });
         }
       } else if (payment.purpose === 'BALANCE') {
-        // Balance payment eligibility: must be in DELIVERED or PICKED_UP
-        if (!['DELIVERED', 'PICKED_UP', 'BALANCE_PAID'].includes(payment.order.status)) {
+        // Balance payment eligibility: must be DELIVERED
+        if (!['DELIVERED', 'BALANCE_PAID'].includes(payment.order.status)) {
           throw reject(`Order is not eligible for balance payment (${payment.order.status})`, 409, 'ORDER_NOT_PAYABLE', {
             orderNumber: payment.order.orderNumber,
             orderStatus: payment.order.status,
@@ -838,8 +826,8 @@ async function processWebhook(rawBody, headers) {
         }
 
         // Apply centralized order status transitions:
-        // DELIVERED / PICKED_UP -> BALANCE_PAID
-        if (['DELIVERED', 'PICKED_UP'].includes(payment.order.status)) {
+        // DELIVERED -> BALANCE_PAID
+        if (payment.order.status === 'DELIVERED') {
           await applyOrderStatusTransition(tx, {
             orderId: payment.orderId,
             toStatus: 'BALANCE_PAID',

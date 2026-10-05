@@ -15,9 +15,9 @@ enum Role {
   DISPATCHER
 }
 
+// UgaMarket is delivery-only (pickup stations were retired).
 enum DeliveryType {
   HOME_DELIVERY
-  PICKUP_STATION
 }
 
 enum OrderStatus {
@@ -26,10 +26,8 @@ enum OrderStatus {
   CONFIRMED
   PREPARING
   READY_FOR_DELIVERY
-  READY_FOR_PICKUP
   OUT_FOR_DELIVERY
   DELIVERED
-  PICKED_UP
   BALANCE_PAID
   COMPLETED
   CANCELLED
@@ -102,7 +100,6 @@ enum DeliveryStatus {
   READY
   OUT_FOR_DELIVERY
   DELIVERED
-  PICKED_UP
   FAILED
   CANCELLED
 }
@@ -111,7 +108,6 @@ enum DeliveryFailureReason {
   CUSTOMER_UNAVAILABLE
   INVALID_ADDRESS
   DRIVER_UNABLE_TO_COMPLETE
-  PICKUP_STATION_ISSUE
   OTHER
 }
 
@@ -194,25 +190,6 @@ model Address {
 
   @@index([userId])
   @@map("addresses")
-}
-
-model PickupStation {
-  id             Int      @id @default(autoincrement())
-  name           String   @db.VarChar(150)
-  district       String   @db.VarChar(100)
-  addressText    String   @map("address_text") @db.Text
-  contactPhone   String   @map("contact_phone") @db.VarChar(30)
-  operatingHours String   @map("operating_hours") @db.VarChar(100)
-  pickupFeeUgx   Int      @default(0) @map("pickup_fee_ugx")
-  latitude       Decimal? @db.Decimal(10, 7)
-  longitude      Decimal? @db.Decimal(10, 7)
-  isActive       Boolean  @default(true) @map("is_active")
-  createdAt      DateTime @default(now()) @map("created_at")
-  updatedAt      DateTime @updatedAt @map("updated_at")
-
-  orders Order[]
-
-  @@map("pickup_stations")
 }
 
 model Category {
@@ -384,7 +361,6 @@ model Order {
   userId            String       @map("user_id") @db.Uuid
   deliveryType      DeliveryType @map("delivery_type")
   deliveryAddressId String?      @map("delivery_address_id") @db.Uuid
-  pickupStationId   Int?         @map("pickup_station_id")
   status            OrderStatus  @default(PENDING_PAYMENT)
   itemsSubtotal     Int          @map("items_subtotal")
   deliveryFee       Int          @default(0) @map("delivery_fee")
@@ -394,13 +370,11 @@ model Order {
   notes             String?      @db.Text
   currency          String       @default("UGX") @db.VarChar(10)
   addressSnapshot   Json?        @map("address_snapshot")
-  stationSnapshot   Json?        @map("station_snapshot")
   createdAt         DateTime     @default(now()) @map("created_at")
   updatedAt         DateTime     @updatedAt @map("updated_at")
 
   user            User                 @relation(fields: [userId], references: [id], onDelete: Restrict)
   deliveryAddress Address?             @relation(fields: [deliveryAddressId], references: [id], onDelete: SetNull)
-  pickupStation   PickupStation?       @relation(fields: [pickupStationId], references: [id], onDelete: SetNull)
   items           OrderItem[]
   statusHistory   OrderStatusHistory[]
   payments        Payment[]
@@ -476,8 +450,8 @@ model Payment {
 }
 
 // Phase 7: fulfillment record. Exactly ONE delivery per order (unique order_id,
-// DB-enforced). Order.addressSnapshot / Order.stationSnapshot (Phase 5) remain
-// the customer-facing immutable snapshots; the delivery row carries its own
+// DB-enforced). Order.addressSnapshot (Phase 5) remains the customer-facing
+// immutable snapshot; the delivery row carries its own
 // operational copy plus distance/fee/assignment lifecycle data.
 model Delivery {
   id              String                 @id @default(uuid()) @db.Uuid
@@ -493,7 +467,6 @@ model Delivery {
   distanceSource  String?                @map("distance_source") @db.VarChar(20)
   assignedAdminId String?                @map("assigned_admin_id") @db.Uuid
   addressSnapshot Json?                  @map("address_snapshot")
-  stationSnapshot Json?                  @map("station_snapshot")
   scheduledAt     DateTime?              @map("scheduled_at")
   startedAt       DateTime?              @map("started_at")
   completedAt     DateTime?              @map("completed_at")
@@ -819,4 +792,42 @@ model ServiceRequestEvent {
 
   @@index([requestId])
   @@map("service_request_events")
+}
+
+// ============================================================
+// Storefront content the owner controls from the admin console.
+// English is the source of truth; other languages are machine-translated
+// into `translations` ({ "LG": { "name": "...", "description": "..." } }).
+// ============================================================
+
+// Single-row table (id is always 1): public contact details + top-bar notice.
+model StoreProfile {
+  id                       Int      @id @default(1)
+  storeName                String   @default("UgaMarket") @map("store_name") @db.VarChar(100)
+  supportPhone             String?  @map("support_phone") @db.VarChar(30)
+  supportEmail             String?  @map("support_email") @db.VarChar(255)
+  whatsappPhone            String?  @map("whatsapp_phone") @db.VarChar(30)
+  addressText              String?  @map("address_text") @db.VarChar(300)
+  businessHours            String?  @map("business_hours") @db.VarChar(150)
+  // Optional announcement shown in the storefront top bar (English).
+  announcement             String?  @db.VarChar(200)
+  announcementTranslations Json?    @map("announcement_translations")
+  updatedAt                DateTime @updatedAt @map("updated_at")
+
+  @@map("store_profile")
+}
+
+// Frequently asked questions shown on the storefront help page.
+model Faq {
+  id           Int      @id @default(autoincrement())
+  questionEn   String   @map("question_en") @db.VarChar(200)
+  answerEn     String   @map("answer_en") @db.Text
+  translations Json?
+  displayOrder Int      @default(0) @map("display_order")
+  isActive     Boolean  @default(true) @map("is_active")
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([isActive, displayOrder])
+  @@map("faqs")
 }

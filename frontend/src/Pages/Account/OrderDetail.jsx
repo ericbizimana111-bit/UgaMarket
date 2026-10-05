@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, ArrowLeft, Check, CheckCircle, Clock, Info, Landmark, Loader, Mail, MapPin, MessageCircle, Phone, Route, Smartphone, Truck, XCircle } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Check, CheckCircle, Info, Landmark, Loader, Mail, MessageCircle, Phone, Route, Smartphone, Truck, XCircle } from 'lucide-react';
 import apiClient from '../../api/client';
 import ConfirmDialog from '../../Components/ui/ConfirmDialog';
 import { useAuth } from '../../Context/AuthContext';
@@ -240,12 +240,11 @@ const OrderDetail = () => {
   const currentStep = lifecycleIndex(order.status);
   const statusBadge = orderStatusMeta(order.status, t);
   const isCancelled = ['CANCELLED', 'REFUNDED', 'DELIVERY_FAILED'].includes(order.status);
-  const isHome = order.fulfillment?.method === 'HOME_DELIVERY';
   const needsEmail = !user?.email;
 
   // Payment eligibility mirrors backend rules.
   const canPayCommitment = order.status === 'PENDING_PAYMENT';
-  const canPayBalance = order.status === 'DELIVERED' || order.status === 'PICKED_UP';
+  const canPayBalance = order.status === 'DELIVERED';
   const canCancel = ['PENDING_PAYMENT', 'COMMITMENT_PAID', 'CONFIRMED'].includes(order.status);
 
   const fin = paymentInfo?.pricing || null;
@@ -258,11 +257,7 @@ const OrderDetail = () => {
   const balanceStatus = paymentInfo?.balancePaymentStatus || 'UNPAID';
   const balanceBeforeFulfillment = !canPayBalance && !isCancelled && balanceDue !== null && balanceDue > 0;
 
-  const stepLabel = (idx) => {
-    if (!isHome && idx === 3) return t('stepReadyCollection');
-    if (!isHome && idx === 4) return t('stepPickedUp');
-    return t(LIFECYCLE_KEYS[idx]);
-  };
+  const stepLabel = (idx) => t(LIFECYCLE_KEYS[idx]);
 
   const stageBadge = (status, paidLabel) => {
     if (status === 'SUCCESS' || status === 'NOT_REQUIRED') {
@@ -375,7 +370,7 @@ const OrderDetail = () => {
         <section className="od__action od__action--balance">
           <div>
             <strong>{t('actionPayBalance')}</strong>
-            <p>{t(isHome ? 'actionPayBalanceHome' : 'actionPayBalancePickup', { amount: formatUGX(balanceDisplay) })}</p>
+            <p>{t('actionPayBalanceHome', { amount: formatUGX(balanceDisplay) })}</p>
             <MethodPicker value={paymentMethod} onChange={setPaymentMethod} disabled={actionLoading} t={t} />
             {needsEmail && <EmailPrompt t={t} onSaved={refreshUser} />}
           </div>
@@ -388,7 +383,7 @@ const OrderDetail = () => {
       {balanceBeforeFulfillment && (
         <div className="alert alert-info" role="status">
           <Info size={16} aria-hidden="true" />
-          <span>{t('balanceLater', { amount: formatUGX(balanceDue), state: isHome ? t('stateDelivered') : t('statePickedUp') })}</span>
+          <span>{t('balanceLater', { amount: formatUGX(balanceDue), state: t('stateDelivered') })}</span>
         </div>
       )}
 
@@ -435,65 +430,36 @@ const OrderDetail = () => {
         {/* Fulfillment */}
         <section className="od__block od__card">
           <h3>{t('fulfillmentDetails')}</h3>
-          {isHome ? (
-            <>
-              <span className="badge badge-info">
-                <Truck size={13} aria-hidden="true" /> {t('homeDelivery')}
-              </span>
-              {order.fulfillment?.address ? (
-                <div className="od__addr">
-                  <strong>{order.fulfillment.address.title || t('deliveryAddress')}</strong>
-                  <p>
-                    {order.fulfillment.address.streetAddress}
-                    {order.fulfillment.address.division ? `, ${order.fulfillment.address.division}` : ''}
-                    {order.fulfillment.address.district ? `, ${order.fulfillment.address.district}` : ''}
-                  </p>
-                  {order.fulfillment.address.landmark && (
-                    <span>
-                      <Landmark size={13} aria-hidden="true" /> {order.fulfillment.address.landmark}
-                    </span>
-                  )}
-                  {order.fulfillment.address.contactPhone && (
-                    <span>
-                      <Phone size={13} aria-hidden="true" /> {order.fulfillment.address.contactPhone}
-                    </span>
-                  )}
-                  {order.fulfillment.distanceKm != null && (
-                    <span>
-                      <Route size={13} aria-hidden="true" /> {t('kmValue', { km: Number(order.fulfillment.distanceKm).toFixed(1) })}
-                      {order.fulfillment.etaMinutes ? ` · ${t('etaShort', { min: order.fulfillment.etaMinutes })}` : ''}
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <p className="od__muted">{t('addressStored')}</p>
+          <span className="badge badge-info">
+            <Truck size={13} aria-hidden="true" /> {t('homeDelivery')}
+          </span>
+          {order.fulfillment?.address ? (
+            <div className="od__addr">
+              <strong>{order.fulfillment.address.title || t('deliveryAddress')}</strong>
+              <p>
+                {order.fulfillment.address.streetAddress}
+                {order.fulfillment.address.division ? `, ${order.fulfillment.address.division}` : ''}
+                {order.fulfillment.address.district ? `, ${order.fulfillment.address.district}` : ''}
+              </p>
+              {order.fulfillment.address.landmark && (
+                <span>
+                  <Landmark size={13} aria-hidden="true" /> {order.fulfillment.address.landmark}
+                </span>
               )}
-            </>
+              {order.fulfillment.address.contactPhone && (
+                <span>
+                  <Phone size={13} aria-hidden="true" /> {order.fulfillment.address.contactPhone}
+                </span>
+              )}
+              {order.fulfillment.distanceKm != null && (
+                <span>
+                  <Route size={13} aria-hidden="true" /> {t('kmValue', { km: Number(order.fulfillment.distanceKm).toFixed(1) })}
+                  {order.fulfillment.etaMinutes ? ` · ${t('etaShort', { min: order.fulfillment.etaMinutes })}` : ''}
+                </span>
+              )}
+            </div>
           ) : (
-            <>
-              <span className="badge badge-success">
-                <MapPin size={13} aria-hidden="true" /> {t('pickupStation')}
-              </span>
-              {order.fulfillment?.station ? (
-                <div className="od__addr">
-                  <strong>{order.fulfillment.station.name}</strong>
-                  <p>
-                    {order.fulfillment.station.addressText}
-                    {order.fulfillment.station.district ? `, ${order.fulfillment.station.district}` : ''}
-                  </p>
-                  <span>
-                    <Clock size={13} aria-hidden="true" /> {order.fulfillment.station.operatingHours || t('contactForHours')}
-                  </span>
-                  {order.fulfillment.station.contactPhone && (
-                    <span>
-                      <Phone size={13} aria-hidden="true" /> {order.fulfillment.station.contactPhone}
-                    </span>
-                  )}
-                </div>
-              ) : (
-                <p className="od__muted">{t('stationStored')}</p>
-              )}
-            </>
+            <p className="od__muted">{t('addressStored')}</p>
           )}
 
           {delivery && (
@@ -542,7 +508,7 @@ const OrderDetail = () => {
               <dd>{formatUGX(order.pricing?.itemsSubtotalUgx || 0)}</dd>
             </div>
             <div>
-              <dt>{t('deliveryStationFee')}</dt>
+              <dt>{t('deliveryFee')}</dt>
               <dd>{formatUGX(order.pricing?.deliveryFeeUgx || 0)}</dd>
             </div>
             <div className="od__fin-strong">

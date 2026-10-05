@@ -98,7 +98,6 @@ async function resolveFulfillment(tx, userId, prepared) {
   return {
     deliveryType: 'HOME_DELIVERY',
     deliveryAddressId: current.id,
-    pickupStationId: null,
     deliveryFeeUgx: quote.deliveryFeeUgx,
     quote,
     snapshot: buildAddressSnapshot(current, user),
@@ -167,9 +166,8 @@ function formatOrder(order, lang = 'EN', { includeHistory = true } = {}) {
     status: order.status,
     fulfillment: {
       method: order.deliveryType,
-      ...(order.deliveryType === 'HOME_DELIVERY'
-        ? { addressId: order.deliveryAddressId, address: order.addressSnapshot || null }
-        : { pickupStationId: order.pickupStationId, station: order.stationSnapshot || null }),
+      addressId: order.deliveryAddressId,
+      address: order.addressSnapshot || null,
       ...(order.delivery
         ? {
             distanceKm: order.delivery.distanceKm !== null ? Number(order.delivery.distanceKm) : null,
@@ -249,7 +247,7 @@ async function createOrderFromCart(userId, { fulfillmentMethod = 'HOME_DELIVERY'
       throw new AppError('Your cart is empty', 400);
     }
 
-    // 2. Fulfillment validation + snapshots + fee (address/station locked to their tables)
+    // 2. Fulfillment validation + address snapshot + fee (address locked to its table)
     const fulfillment = await resolveFulfillment(tx, userId, prepared);
 
     // 3. Revalidate cart lines against authoritative product data
@@ -308,7 +306,6 @@ async function createOrderFromCart(userId, { fulfillmentMethod = 'HOME_DELIVERY'
         userId,
         deliveryType: fulfillment.deliveryType,
         deliveryAddressId: fulfillment.deliveryAddressId,
-        pickupStationId: fulfillment.pickupStationId,
         status: 'PENDING_PAYMENT',
         itemsSubtotal: amounts.subtotalUgx,
         deliveryFee: amounts.deliveryFeeUgx,
@@ -317,8 +314,7 @@ async function createOrderFromCart(userId, { fulfillmentMethod = 'HOME_DELIVERY'
         remainingBalance: amounts.remainingBalanceUgx,
         currency: 'UGX',
         notes: notes ? String(notes).slice(0, 1000) : null,
-        addressSnapshot: fulfillment.deliveryType === 'HOME_DELIVERY' ? fulfillment.snapshot : undefined,
-        stationSnapshot: fulfillment.deliveryType === 'PICKUP_STATION' ? fulfillment.snapshot : undefined,
+        addressSnapshot: fulfillment.snapshot,
         items: {
           create: lines.map((line) => ({
             productId: line.productId,
@@ -558,7 +554,7 @@ async function cancelCustomerOrder(userId, orderId, reason = null) {
       include: { items: true, statusHistory: { orderBy: { createdAt: 'asc' } } },
     });
 
-    // Phase 7: operationally deactivate the fulfillment (DELIVERED/PICKED_UP
+    // Phase 7: operationally deactivate the fulfillment (DELIVERED
     // already-terminal deliveries are left untouched — money/history intact;
     // Phase 5 cancellation rules themselves gate which orders can be cancelled).
     await cancelDeliveryForOrder(tx, orderId, reason);
@@ -593,7 +589,7 @@ async function listAdminOrders({ page = 1, limit = 20, status = null, fulfillmen
       .filter((s) => ORDER_STATUS_TRANSITIONS[s] !== undefined);
     if (statuses.length > 0) where.status = { in: statuses };
   }
-  if (fulfillmentMethod === 'HOME_DELIVERY' || fulfillmentMethod === 'PICKUP_STATION') {
+  if (fulfillmentMethod === 'HOME_DELIVERY') {
     where.deliveryType = fulfillmentMethod;
   }
   if (search && String(search).trim().length > 0) {
@@ -764,7 +760,7 @@ async function applyAdminOrderStatus({ orderId, toStatus, admin, reason = null, 
     });
 
     // Phase 7: keep the fulfillment record consistent with the order move
-    // (READY/OUT/DELIVERED/PICKED_UP/FAILED/CANCELLED sync; no-op for purely
+    // (READY/OUT/DELIVERED/FAILED/CANCELLED sync; no-op for purely
     // financial states). Uses the same central delivery transition.
     await syncDeliveryForOrderTransition(tx, {
       orderId,

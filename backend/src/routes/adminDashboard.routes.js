@@ -24,6 +24,7 @@ const ACTIVE_ORDER_STATUSES = ['COMMITMENT_PAID', 'CONFIRMED', 'PREPARING', 'REA
 router.get('/summary', async (req, res, next) => {
   try {
     const today = startOfKampalaDay(0);
+    const yesterday = startOfKampalaDay(1);
     const weekStart = startOfKampalaDay(6);
 
     const [
@@ -61,15 +62,27 @@ router.get('/summary', async (req, res, next) => {
       notificationService.countUnreadAdmin(req.admin.id),
     ]);
 
+    // Day-over-day comparison and the daily collections series for the KPI cards.
+    const [ordersYesterday, paidYesterday, weekPayments] = await Promise.all([
+      prisma.order.count({ where: { createdAt: { gte: yesterday, lt: today } } }),
+      prisma.payment.aggregate({ where: { status: 'SUCCESS', verifiedAt: { gte: yesterday, lt: today } }, _sum: { amountUgx: true } }),
+      prisma.payment.findMany({
+        where: { status: 'SUCCESS', verifiedAt: { gte: weekStart } },
+        select: { verifiedAt: true, amountUgx: true },
+      }),
+    ]);
+
     const trend = [];
     for (let i = 6; i >= 0; i -= 1) {
       const start = startOfKampalaDay(i);
       const end = new Date(start.getTime() + 86400000);
       const rows = weekOrders.filter((o) => o.createdAt >= start && o.createdAt < end);
+      const paid = weekPayments.filter((p) => p.verifiedAt >= start && p.verifiedAt < end);
       trend.push({
         date: new Date(start.getTime() + EAT_OFFSET_MS).toISOString().slice(0, 10),
         orders: rows.length,
         revenueUgx: rows.reduce((s, o) => s + o.totalAmount, 0),
+        paymentsUgx: paid.reduce((s, p) => s + p.amountUgx, 0),
       });
     }
 
@@ -83,6 +96,10 @@ router.get('/summary', async (req, res, next) => {
           orderValueUgx: revenueToday._sum.totalAmount || 0,
           paymentsCollectedUgx: paidToday._sum.amountUgx || 0,
           newCustomers: customersToday,
+        },
+        yesterday: {
+          orders: ordersYesterday,
+          paymentsCollectedUgx: paidYesterday._sum.amountUgx || 0,
         },
         queues: {
           ordersNeedingAction: needsAction,

@@ -1,5 +1,7 @@
 # UgaMarket Delivery & Fulfillment API (Phase 7)
 
+> **Update (Oct 2026): UgaMarket is delivery-only.** Pickup stations, `PICKUP_STATION`, `READY_FOR_PICKUP`, `PICKED_UP`, `PICKUP_STATION_ISSUE` and `stationSnapshot` were removed (migration `20261005000000_remove_pickup_stations`). Every order is `HOME_DELIVERY` to a validated address; requests sending `PICKUP_STATION` are refused with `400`. Pickup sections below are historical.
+
 Backend fulfillment infrastructure for `HOME_DELIVERY` and `PICKUP_STATION` orders, built on top of the Phase 5 order lifecycle and Phase 6 payment infrastructure.
 
 ## Architecture
@@ -138,7 +140,7 @@ No new Phase 7 environment variables are required. Pricing origin/fees live in t
 
 ## Testing
 
-`tests/delivery.test.js` (23 tests): creation (home/pickup/IDOR address/inactive station), pricing authority + formula table, snapshot immutability, IDOR/RBAC, full lifecycle sync (home + pickup), invalid transitions, idempotent repeats, assignment (authorized/invalid target/terminal/pickup/concurrent), cancellation interaction, and real-DB concurrency (5 completions / 5 pickups → exactly one transition + one history entry). `scripts/phase7-smoke.js` (40 HTTP checks) exercises the same boundaries over real HTTP with exact cleanup.
+`tests/delivery.test.js` (23 tests): creation (home/pickup/IDOR address/inactive station), pricing authority + formula table, snapshot immutability, IDOR/RBAC, full lifecycle sync (home + pickup), invalid transitions, idempotent repeats, assignment (authorized/invalid target/terminal/pickup/concurrent), cancellation interaction, and real-DB concurrency (5 completions / 5 pickups → exactly one transition + one history entry). `scripts/marketplace-e2e.js` exercises the delivery flow over real HTTP against a running API.
 
 ## Future Work (deliberately deferred)
 

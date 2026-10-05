@@ -40,8 +40,8 @@ describe('status metadata maps to semantic tones consistently', () => {
     expect(getOrderStatusMeta('PREPARING').tone).toBe('info');
   });
 
-  it('delivery statuses use the delivery map (PICKED_UP is success, not neutral)', () => {
-    expect(getDeliveryStatusMeta('PICKED_UP').tone).toBe('success');
+  it('delivery statuses use the delivery map (DELIVERED is success, not neutral)', () => {
+    expect(getDeliveryStatusMeta('DELIVERED').tone).toBe('success');
     expect(getDeliveryStatusMeta('OUT_FOR_DELIVERY').tone).toBe('warning');
     expect(getDeliveryStatusMeta('FAILED').tone).toBe('danger');
   });

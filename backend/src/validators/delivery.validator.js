@@ -10,18 +10,16 @@ const deliveryStatusEnum = z.enum([
   'READY',
   'OUT_FOR_DELIVERY',
   'DELIVERED',
-  'PICKED_UP',
   'FAILED',
   'CANCELLED',
 ]);
 
-const fulfillmentTypeEnum = z.enum(['HOME_DELIVERY', 'PICKUP_STATION']);
+const fulfillmentTypeEnum = z.enum(['HOME_DELIVERY']);
 
 const deliveryFailureReasonEnum = z.enum([
   'CUSTOMER_UNAVAILABLE',
   'INVALID_ADDRESS',
   'DRIVER_UNABLE_TO_COMPLETE',
-  'PICKUP_STATION_ISSUE',
   'OTHER',
 ]);
 

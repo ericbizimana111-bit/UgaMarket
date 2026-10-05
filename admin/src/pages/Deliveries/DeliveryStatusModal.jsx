@@ -10,14 +10,12 @@ import './DeliveryStatusModal.css';
  *  - PATCH /api/admin/deliveries/:id/status
  *      { status, failureReason?, failureMessage?, notes?, scheduledAt? }
  *  - PATCH /api/admin/deliveries/:id/assign { assignedAdminId, notes? }
- * The backend enforces the delivery state machine and fulfillment-type
- * branches; a 409 means the chosen transition is not allowed from here.
+ * The backend enforces the delivery state machine; a 409 means the chosen transition is not allowed from here.
  */
 const FAILURE_REASONS = [
   { value: 'CUSTOMER_UNAVAILABLE', label: 'Customer unavailable' },
   { value: 'INVALID_ADDRESS', label: 'Invalid address' },
   { value: 'DRIVER_UNABLE_TO_COMPLETE', label: 'Driver unable to complete' },
-  { value: 'PICKUP_STATION_ISSUE', label: 'Pickup station issue' },
   { value: 'OTHER', label: 'Other' },
 ];
 
@@ -107,8 +105,7 @@ export default function DeliveryStatusModal({ delivery, onClose, onDone }) {
 
         <p className="dstat-modal__order">
           Order <strong className="mono">{delivery.orderNumber || delivery.orderId}</strong> ·
-          current status <strong>{delivery.status}</strong> ·{' '}
-          {delivery.fulfillmentType === 'PICKUP_STATION' ? 'Pickup' : 'Home delivery'}
+          current status <strong>{delivery.status}</strong> · Home delivery
         </p>
 
         <div className="dstat-modal__tabs" role="tablist">
@@ -154,7 +151,7 @@ export default function DeliveryStatusModal({ delivery, onClose, onDone }) {
                   disabled={submitting}
                 >
                   <option value="">Select status…</option>
-                  {['PENDING', 'ASSIGNED', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'PICKED_UP', 'FAILED', 'CANCELLED'].map(
+                  {['PENDING', 'ASSIGNED', 'READY', 'OUT_FOR_DELIVERY', 'DELIVERED', 'FAILED', 'CANCELLED'].map(
                     (s) => (
                       <option key={s} value={s}>
                         {s}
@@ -164,8 +161,7 @@ export default function DeliveryStatusModal({ delivery, onClose, onDone }) {
                 </select>
                 {validation.status && <span className="field-error">{validation.status}</span>}
                 <span className="field-hint">
-                  The backend validates this against the delivery state machine for the
-                  fulfillment type.
+                  The backend validates this against the delivery state machine.
                 </span>
               </div>
 

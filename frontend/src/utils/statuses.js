@@ -9,10 +9,8 @@ const ORDER_TONES = {
   CONFIRMED: 'success',
   PREPARING: 'info',
   READY_FOR_DELIVERY: 'info',
-  READY_FOR_PICKUP: 'success',
   OUT_FOR_DELIVERY: 'warning',
   DELIVERED: 'success',
-  PICKED_UP: 'success',
   BALANCE_PAID: 'success',
   COMPLETED: 'success',
   CANCELLED: 'danger',
@@ -57,12 +55,10 @@ export function lifecycleIndex(status) {
       return 1;
     case 'PREPARING':
     case 'READY_FOR_DELIVERY':
-    case 'READY_FOR_PICKUP':
       return 2;
     case 'OUT_FOR_DELIVERY':
       return 3;
     case 'DELIVERED':
-    case 'PICKED_UP':
       return 4;
     case 'BALANCE_PAID':
     case 'COMPLETED':

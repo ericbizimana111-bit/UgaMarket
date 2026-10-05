@@ -138,3 +138,20 @@
     transform: none;
   }
 }
+
+.hiw__qa--skeleton {
+  height: 56px;
+  animation: hiw-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes hiw-pulse {
+  50% {
+    opacity: 0.55;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hiw__qa--skeleton {
+    animation: none;
+  }
+}

@@ -1,4 +1,5 @@
 const { z } = require('zod');
+const { deliveryOnlyMethod } = require('./order.validator');
 
 const uuidSchema = z
   .string({ invalid_type_error: 'ID must be a string' })
@@ -8,18 +9,9 @@ const uuidSchema = z
 const checkoutPreviewSchema = {
   body: z
     .object({
-      fulfillmentMethod: z
-        .enum(['HOME_DELIVERY', 'PICKUP_STATION'], {
-          errorMap: () => ({ message: 'fulfillmentMethod must be HOME_DELIVERY' }),
-        })
-        .optional()
-        .default('HOME_DELIVERY')
-        .refine((m) => m === 'HOME_DELIVERY', {
-          message: 'Pickup is no longer available. UgaMarket delivers every order to your address.',
-        }),
+      fulfillmentMethod: deliveryOnlyMethod,
       addressId: uuidSchema.nullable().optional(),
       // Mass-assignment protection: client can never supply totals/prices/ids of other resources
-      pickupStationId: z.unknown().optional(),
       subtotalUgx: z.unknown().optional(),
       deliveryFeeUgx: z.unknown().optional(),
       totalUgx: z.unknown().optional(),

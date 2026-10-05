@@ -46,10 +46,14 @@ describe('marketplace dictionary', () => {
     expect(broken).toEqual([]);
   });
 
-  test('Visa / MasterCard are no longer advertised', () => {
-    ['faq3A', 'trustPayDesc', 'deliveryPayDesc'].forEach((key) => {
-      Object.values(TRANSLATIONS).forEach((dict) => expect(dict[key]).not.toMatch(/visa|mastercard/i));
+  test('no copy advertises cards or pickup stations (mobile money + delivery only)', () => {
+    const offending = [];
+    Object.entries(TRANSLATIONS).forEach(([lang, dict]) => {
+      Object.entries(dict).forEach(([key, text]) => {
+        if (/visa|mastercard|pickup station|pick-up station|station pickup/i.test(String(text))) offending.push(`${lang}.${key}`);
+      });
     });
+    expect(offending).toEqual([]);
   });
 });
 

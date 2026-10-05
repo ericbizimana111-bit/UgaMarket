@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, ArrowRight, MapPin, Package, Truck } from 'lucide-react';
+import { AlertTriangle, ArrowRight, Package, Truck } from 'lucide-react';
 import apiClient from '../../api/client';
 import Pagination from '../../Components/ui/Pagination';
 import { useLanguage } from '../../Context/LanguageContext';
@@ -84,7 +84,6 @@ const Orders = () => {
       <ul className="orders">
         {orders.map((order) => {
           const status = orderStatusMeta(order.status, t);
-          const home = order.fulfillment?.method === 'HOME_DELIVERY';
           return (
             <li key={order.id} className="order">
               <div className="order__top">
@@ -99,8 +98,8 @@ const Orders = () => {
                 <div>
                   <dt>{t('fulfillmentCol')}</dt>
                   <dd>
-                    {home ? <Truck size={14} aria-hidden="true" /> : <MapPin size={14} aria-hidden="true" />}
-                    {home ? t('doorstepDelivery') : t('stationPickup')}
+                    <Truck size={14} aria-hidden="true" />
+                    {t('doorstepDelivery')}
                   </dd>
                 </div>
                 <div>

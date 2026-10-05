@@ -206,4 +206,4 @@ When a balance payment webhook succeeds:
 ## 8. Automated Verification
 
 - `tests/balancePayment.test.js`: 14 comprehensive tests covering fulfillment boundaries, server-authoritative balance calculation, idempotency, webhook security, failures/retries, order completion, notifications, replay protection, IDOR/RBAC, and concurrency races.
-- `scripts/phase8-smoke.js`: 50 end-to-end integration assertions verifying the live running server, customer & admin flows, and multi-threaded concurrency.
+- `scripts/marketplace-e2e.js`: end-to-end checks against a running API (order, signed deposit webhook, live staff notifications, chat, home services).
