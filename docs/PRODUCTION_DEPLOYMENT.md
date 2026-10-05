@@ -4,6 +4,10 @@ Production-oriented deployment foundation for the UgaMarket — home to home
 marketplace (customer web, admin web, Node/Express backend, PostgreSQL 17 +
 Prisma).
 
+> **Going live?** Follow the step-by-step [Go-live guide](DEPLOYMENT_GUIDE.md)
+> (recommended hosting, Cloudflare Tunnel, first-day checklist, backups).
+> This document is the technical reference behind it.
+
 ## 1. Architecture
 
 ```
