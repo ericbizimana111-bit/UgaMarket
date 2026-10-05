@@ -26,9 +26,11 @@ function normalizeLanguage(lang) {
 /**
  * Resolves translation with deterministic fallback strategy:
  * 1. Requested Language
- * 2. English ('EN')
- * 3. First available translation
- * 4. Fallback defaults
+ * 2. English ('EN') translation
+ * 3. The entity's own English fields (fallbackName / fallbackDescription):
+ *    an item whose only rows are machine translations must still read in
+ *    English for English shoppers, never in Luganda or French
+ * 4. First available translation (legacy rows with no English at all)
  */
 function resolveTranslation(translations = [], requestedLang = DEFAULT_LANGUAGE, fallbackName = '', fallbackDescription = '') {
   const normLang = normalizeLanguage(requestedLang);
@@ -61,7 +63,16 @@ function resolveTranslation(translations = [], requestedLang = DEFAULT_LANGUAGE,
     };
   }
 
-  // 3. Fallback to first available translation
+  // 3. The entity's own English name
+  if (fallbackName) {
+    return {
+      language: DEFAULT_LANGUAGE,
+      name: fallbackName,
+      description: fallbackDescription || '',
+    };
+  }
+
+  // 4. Fallback to first available translation
   const first = translations[0];
   if (first && first.name) {
     return {

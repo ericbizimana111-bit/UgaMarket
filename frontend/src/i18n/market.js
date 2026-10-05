@@ -262,7 +262,17 @@ const en = {
   cancelBooking: 'Cancel booking',
   cancelBookingTitle: 'Cancel this booking?',
   cancelBookingMessage: 'The technician visit will be cancelled. You can book again any time.',
-  keepBooking: 'Keep booking'
+  keepBooking: 'Keep booking',
+
+  // ---- General-merchandise wording (replaces food-only copy) ----
+  ctaBrowse: 'Browse all products',
+  relatedTitle: 'You may also like',
+  returnToCatalog: 'Return to all products',
+  notesLabel: 'Delivery notes',
+  noOrdersDesc: 'You have not placed any orders yet. Everything you need is a few taps away.',
+  exploreCatalog: 'Explore all products',
+  actionPayDepositDesc: 'Please pay {amount} to confirm your order so we can start preparing it for delivery.',
+  actionPayBalance: 'Order received: complete your balance',
 };
 
 const lg = {
@@ -511,7 +521,17 @@ const lg = {
   cancelBooking: 'Sazaamu booking',
   cancelBookingTitle: 'Sazaamu booking eno?',
   cancelBookingMessage: 'Okukyala kw’omukozi kujja kusazibwamu. Osobola okukwata nate essaawa yonna.',
-  keepBooking: 'Sigaza booking'
+  keepBooking: 'Sigaza booking',
+
+  // ---- General-merchandise wording (replaces food-only copy) ----
+  ctaBrowse: 'Laba ebintu byonna',
+  relatedTitle: 'Ebintu ebifaanagana',
+  returnToCatalog: 'Ddayo ku bintu byonna',
+  notesLabel: 'Ebikwata ku kutuusa',
+  noOrdersDesc: 'Tonnalagira kintu kyonna. Byonna by’oyagala biri kumpi.',
+  exploreCatalog: 'Weetegereze ebintu byonna',
+  actionPayDepositDesc: 'Nsaba osasule {amount} okukakasa okulagira kwo tutandike okukitegeka okukutuusaako.',
+  actionPayBalance: 'Ebyalagiddwa bituuse: Maliriza okusasula',
 };
 
 const sw = {
@@ -760,7 +780,17 @@ const sw = {
   cancelBooking: 'Ghairi huduma',
   cancelBookingTitle: 'Ghairi huduma hii?',
   cancelBookingMessage: 'Ziara ya fundi itaghairiwa. Unaweza kuweka tena wakati wowote.',
-  keepBooking: 'Endelea na huduma'
+  keepBooking: 'Endelea na huduma',
+
+  // ---- General-merchandise wording (replaces food-only copy) ----
+  ctaBrowse: 'Vinjari bidhaa zote',
+  relatedTitle: 'Unaweza pia kupenda',
+  returnToCatalog: 'Rudi kwenye bidhaa zote',
+  notesLabel: 'Maelezo ya uwasilishaji',
+  noOrdersDesc: 'Bado hujaweka agizo lolote. Kila unachohitaji kiko karibu.',
+  exploreCatalog: 'Gundua bidhaa zote',
+  actionPayDepositDesc: 'Tafadhali lipa {amount} kuthibitisha agizo lako ili tuanze kulitayarisha kwa uwasilishaji.',
+  actionPayBalance: 'Agizo limepokelewa: kamilisha salio lako',
 };
 
 const fr = {
@@ -1009,7 +1039,17 @@ const fr = {
   cancelBooking: 'Annuler la réservation',
   cancelBookingTitle: 'Annuler cette réservation ?',
   cancelBookingMessage: 'La visite du technicien sera annulée. Vous pouvez réserver de nouveau à tout moment.',
-  keepBooking: 'Garder la réservation'
+  keepBooking: 'Garder la réservation',
+
+  // ---- General-merchandise wording (replaces food-only copy) ----
+  ctaBrowse: 'Parcourir tous les produits',
+  relatedTitle: 'Vous aimerez aussi',
+  returnToCatalog: 'Retour à tous les produits',
+  notesLabel: 'Instructions de livraison',
+  noOrdersDesc: 'Vous n’avez pas encore passé de commande. Tout ce qu’il vous faut est à quelques clics.',
+  exploreCatalog: 'Explorer tous les produits',
+  actionPayDepositDesc: 'Veuillez payer {amount} pour confirmer votre commande afin que nous commencions à la préparer pour la livraison.',
+  actionPayBalance: 'Commande reçue : réglez votre solde',
 };
 
 const MARKET = { en, lg, sw, fr };

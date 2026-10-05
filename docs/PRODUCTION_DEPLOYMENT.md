@@ -54,6 +54,7 @@ Required in production (startup **fails fast** otherwise —
 | `ADMIN_1_PASSWORD`, `ADMIN_2_PASSWORD` | explicit; placeholder/default values rejected |
 | `PAYMENT_WEBHOOK_SECRET` | explicit; ≥32 chars; mock default rejected |
 | `CORS_ORIGIN` | explicit origins; wildcard `*` rejected |
+| `RATE_LIMIT_API_MAX`, `RATE_LIMIT_AUTH_MAX` | optional (defaults 600 / 20 per 15 min). API limit is per signed-in account, per IP for visitors; auth limit counts only login/register/OTP attempts |
 | `PAYMENT_PROVIDER` | `MOCK` rejected; use `FLUTTERWAVE` (MTN MoMo + Airtel Money only — cards are not accepted) |
 | `TRANSLATION_PROVIDER` | `GOOGLE` requires `GOOGLE_TRANSLATE_API_KEY`; `LIBRETRANSLATE` requires `LIBRETRANSLATE_URL` |
 | `POSTGRES_USER/PASSWORD/DB` | postgres container bootstrap |
@@ -129,7 +130,7 @@ web container and enable the `listen 443 ssl` block documented in
 - Backend API: `https://<customer-domain>/api` (same-origin via proxy)
 - Product images: `https://<customer-domain>/images/<name>`
 
-`CORS_ORIGIN` must list both public origins (comma-separated).
+`CORS_ORIGIN` must list both public origins (comma-separated). Same-origin calls (the storefront calling `/api` on its own domain) are always accepted; disallowed origins receive `403`.
 
 ## 11. Persistent uploads & backups
 

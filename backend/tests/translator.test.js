@@ -93,3 +93,27 @@ describe('translator.service', () => {
     expect(rows.find((r) => r.language === 'LG').name).toBe('[lg] Red Bucket');
   });
 });
+
+describe('resolveTranslation fallback order', () => {
+  const { resolveTranslation } = require('../src/utils/translation');
+  const auto = [
+    { language: 'LG', name: 'Ebikozesebwa', description: 'lg desc' },
+    { language: 'FR', name: 'Outils', description: 'fr desc' },
+  ];
+
+  test('requested language wins when present', () => {
+    expect(resolveTranslation(auto, 'fr', 'Tools', 'en desc')).toMatchObject({ language: 'FR', name: 'Outils' });
+  });
+
+  test('English shoppers see the English name, never another language (no EN row)', () => {
+    expect(resolveTranslation(auto, 'en', 'Tools', 'en desc')).toEqual({ language: 'EN', name: 'Tools', description: 'en desc' });
+  });
+
+  test('a language not translated yet falls back to English, not to Luganda', () => {
+    expect(resolveTranslation(auto, 'sw', 'Tools', '')).toMatchObject({ language: 'EN', name: 'Tools' });
+  });
+
+  test('legacy rows with no English anywhere still show something', () => {
+    expect(resolveTranslation(auto, 'en', '', '')).toMatchObject({ name: 'Ebikozesebwa' });
+  });
+});
