@@ -4,6 +4,9 @@ This is the practical, start-to-finish path to put UgaMarket on the internet.
 The technical reference (every variable, every service) stays in
 [`PRODUCTION_DEPLOYMENT.md`](PRODUCTION_DEPLOYMENT.md).
 
+> **No budget yet?** Use the free setup instead:
+> [Vercel + Render + Neon + Cloudinary](FREE_DEPLOYMENT.md).
+
 **Target setup (recommended):**
 
 ```
