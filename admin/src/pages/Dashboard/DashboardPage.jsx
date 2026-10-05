@@ -170,9 +170,6 @@ export default function DashboardPage() {
         <div>
           <p className="dash-head__date">
             <CalendarDays size={14} aria-hidden="true" /> {todayLabel}
-            <span className="dash-head__live" title="Updates automatically when orders, payments or bookings arrive">
-              <span aria-hidden="true" /> Live
-            </span>
           </p>
           <h1>
             {greeting}, {firstName}

@@ -22,31 +22,6 @@
   color: var(--text-muted);
 }
 
-.dash-head__live {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  margin-left: 6px;
-  padding: 1px 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--success);
-  background: var(--success-soft);
-  border-radius: 999px;
-}
-
-.dash-head__live span {
-  width: 6px;
-  height: 6px;
-  background: currentColor;
-  border-radius: 50%;
-  animation: dash-live 2s ease-in-out infinite;
-}
-
-@keyframes dash-live {
-  50% { opacity: 0.3; }
-}
-
 .dash-head__sub {
   margin-top: 4px;
   font-size: 14px;
@@ -57,12 +32,6 @@
   display: flex;
   flex-wrap: wrap;
   gap: 8px;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .dash-head__live span {
-    animation: none;
-  }
 }
 
 .dash-table {
