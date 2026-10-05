@@ -278,3 +278,46 @@ describe('validateProductionConfig (production environment validation)', () => {
     });
   });
 });
+
+describe('image storage on ephemeral hosts', () => {
+  const { validateProductionConfig: validate } = require('../src/config/envValidation');
+  const base = () => {
+    const c = {
+      NODE_ENV: 'production',
+      DATABASE_URL: 'postgresql://u:p@db.example.com:5432/ugamarket',
+      JWT_SECRET: 'j'.repeat(40),
+      ADMIN_JWT_SECRET: 'a'.repeat(40),
+      ADMIN_1_PASSWORD: 'Owner-Strong-Pass-2026',
+      ADMIN_2_PASSWORD: 'Ops-Strong-Pass-2026',
+      CORS_ORIGIN: 'https://ugamarket.vercel.app',
+      PAYMENT_PROVIDER: 'FLUTTERWAVE',
+      PAYMENT_MODE: 'TEST',
+      FLW_PUBLIC_KEY: 'FLWPUBK_TEST-0123456789abcdef0123456789abcdef',
+      FLW_SECRET_KEY: 'FLWSECK_TEST-0123456789abcdef0123456789abcdef',
+      PAYMENT_WEBHOOK_SECRET: 'w'.repeat(32),
+      PAYMENT_ATTEMPT_TTL_MINUTES: 30,
+    };
+    return c;
+  };
+  const cloudinaryProblems = (config, raw) => validate(config, raw).filter((p) => p.includes('CLOUDINARY_URL'));
+
+  test('Render without Cloudinary is refused (photos would vanish on restart)', () => {
+    const c = base();
+    expect(cloudinaryProblems(c, { ...c, RENDER: 'true' })).toEqual([expect.stringContaining('required on Render')]);
+  });
+
+  test('Render with Cloudinary is accepted', () => {
+    const c = { ...base(), CLOUDINARY_URL: 'cloudinary://123:abc@ugamarket' };
+    expect(cloudinaryProblems(c, { ...c, RENDER: 'true' })).toEqual([]);
+  });
+
+  test('a malformed CLOUDINARY_URL is refused anywhere', () => {
+    const c = { ...base(), CLOUDINARY_URL: 'https://cloudinary.com/console' };
+    expect(cloudinaryProblems(c, c)).toEqual([expect.stringContaining('must look like')]);
+  });
+
+  test('Docker / VM hosts may keep photos on their persistent volume', () => {
+    const c = base();
+    expect(cloudinaryProblems(c, c)).toEqual([]);
+  });
+});

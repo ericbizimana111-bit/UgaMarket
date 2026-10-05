@@ -82,6 +82,12 @@ if (!fs.existsSync(uploadsDir)) {
 app.use('/images', express.static(uploadsDir));
 
 // 7. Health Check Endpoint
+// Liveness ping for uptime monitors / keep-awake pingers. Deliberately does
+// NOT touch the database so a serverless Postgres (e.g. Neon) can sleep.
+app.get('/api/ping', (req, res) => {
+  res.json({ success: true, status: 'UP', timestamp: new Date().toISOString() });
+});
+
 app.get('/api/health', async (req, res, next) => {
   try {
     // Ping database

@@ -654,7 +654,7 @@ async function uploadProductImage(id, file, { altText = null, isPrimary = false 
 
   // Validates MIME allowlist, 5 MB limit, and real file signature; generates a
   // safe random filename. Throws 400 AppError on any violation.
-  const publicUrl = imageService.saveImageFile(file.buffer, file.mimetype);
+  const publicUrl = await imageService.saveImageFile(file.buffer, file.mimetype);
 
   const existingImages = product.images;
   const makePrimary = isPrimary === true || isPrimary === 'true' || existingImages.length === 0;

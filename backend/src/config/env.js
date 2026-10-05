@@ -50,6 +50,13 @@ const envSchema = z.object({
   // target after card payment. Defaults to the CRA dev server.
   FRONTEND_URL: z.string().default('http://localhost:3000'),
 
+  // Image storage. When CLOUDINARY_URL is set (cloudinary://<key>:<secret>@<cloud>),
+  // uploaded and sample photos are stored on Cloudinary's CDN; otherwise on
+  // local disk under uploads/images (development, Docker with a volume).
+  // Hosts with an ephemeral filesystem (e.g. Render free) MUST use Cloudinary.
+  CLOUDINARY_URL: z.string().default(''),
+  CLOUDINARY_FOLDER: z.string().default('ugamarket'),
+
   // Delivery Pricing
   DELIVERY_BASE_FEE: z.coerce.number().default(3000),
   DELIVERY_FREE_RADIUS_KM: z.coerce.number().default(3.0),

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { Languages, Plus, RefreshCw, Save, Star, Trash2, X } from 'lucide-react';
-import api from '../../services/api';
+import api, { resolveImageUrl } from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import ImageDropzone from '../../components/ui/ImageDropzone';
@@ -659,7 +659,7 @@ export default function ProductFormPage() {
                 <div key={img.id} className="product-form__image-card">
                   <div className="product-form__image-frame">
                     <img
-                      src={img.imageUrl}
+                      src={resolveImageUrl(img.imageUrl)}
                       alt={img.altText || 'Product image'}
                       className="product-form__image-thumb"
                       onError={(e) => {

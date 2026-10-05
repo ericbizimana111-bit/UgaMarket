@@ -9,6 +9,23 @@
 
 export const API_BASE = import.meta.env.VITE_API_URL || '/api';
 
+/** Backend origin, used to resolve relative /images/... URLs when the console
+ *  is hosted on a different domain from the API (e.g. Vercel + Render). */
+export const API_ORIGIN = (() => {
+  try {
+    return new URL(API_BASE).origin;
+  } catch {
+    return API_BASE.replace(/\/api\/?$/, '');
+  }
+})();
+
+/** Absolute URLs (Cloudinary CDN) pass through; /images/... resolves to the API. */
+export function resolveImageUrl(url) {
+  if (!url || typeof url !== 'string') return url;
+  if (/^(https?:|blob:|data:)/i.test(url)) return url;
+  return url.startsWith('/images/') ? `${API_ORIGIN}${url}` : url;
+}
+
 const TOKEN_STORAGE_KEY = 'ugamarket_admin_token';
 
 export class ApiError extends Error {

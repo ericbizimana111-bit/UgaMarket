@@ -26,3 +26,17 @@ describe('API Foundation & Health Check', () => {
     expect(response.body.message).toContain('Endpoint not found');
   });
 });
+
+describe('GET /api/ping (keep-awake liveness)', () => {
+  test('answers without touching the database', async () => {
+    const request = require('supertest');
+    const app = require('../src/app');
+    const prisma = require('../src/config/db');
+    const spy = jest.spyOn(prisma, '$queryRaw');
+    const res = await request(app).get('/api/ping');
+    expect(res.statusCode).toBe(200);
+    expect(res.body).toMatchObject({ success: true, status: 'UP' });
+    expect(spy).not.toHaveBeenCalled();
+    spy.mockRestore();
+  });
+});

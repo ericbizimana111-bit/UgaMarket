@@ -1,9 +1,10 @@
 /**
  * Sample catalogue photos for the seeded products.
  *
- * Photos live in seeds/images (committed; see seeds/images/CREDITS.md) and are
- * copied into uploads/images so they are served by the API like any photo an
- * admin uploads (/images/...). `<slug>.jpg` is the main photo and
+ * Photos live in seeds/images (committed; see seeds/images/CREDITS.md). They
+ * are uploaded to Cloudinary when CLOUDINARY_URL is set (fixed public ids, so
+ * re-running never duplicates), otherwise copied into uploads/images and served
+ * by the API like any photo an admin uploads (/images/...). `<slug>.jpg` is the main photo and
  * `<slug>-2.jpg`, `<slug>-3.jpg`... are extra gallery photos.
  *
  * Photos an admin has uploaded are never replaced: a product is only updated
@@ -17,9 +18,13 @@ const path = require('path');
 const SOURCE_DIR = path.join(__dirname, 'images');
 const UPLOADS_DIR = path.resolve(__dirname, '../uploads/images');
 const SEED_PREFIX = 'seed-';
+const cloudinary = require('../src/services/cloudinary.service');
 
 const isSamplePhoto = (url) =>
-  !url || url.startsWith('https://images.unsplash.com/') || url.startsWith(`/images/${SEED_PREFIX}`);
+  !url ||
+  url.startsWith('https://images.unsplash.com/') ||
+  url.startsWith(`/images/${SEED_PREFIX}`) ||
+  (url.startsWith('https://res.cloudinary.com/') && url.includes('/seed/'));
 
 function photosFor(slug) {
   return fs
@@ -28,7 +33,11 @@ function photosFor(slug) {
     .sort((a, b) => (a === `${slug}.jpg` ? -1 : b === `${slug}.jpg` ? 1 : a.localeCompare(b, 'en', { numeric: true })));
 }
 
-function publish(file) {
+async function publish(file) {
+  if (cloudinary.isEnabled()) {
+    const buffer = fs.readFileSync(path.join(SOURCE_DIR, file));
+    return cloudinary.uploadImage(buffer, { filename: file, publicId: `seed/${file.replace(/\.jpg$/, '')}` });
+  }
   const target = path.join(UPLOADS_DIR, `${SEED_PREFIX}${file}`);
   if (!fs.existsSync(target)) fs.copyFileSync(path.join(SOURCE_DIR, file), target);
   return `/images/${SEED_PREFIX}${file}`;
@@ -36,7 +45,7 @@ function publish(file) {
 
 async function seedProductImages(prisma) {
   if (!fs.existsSync(SOURCE_DIR)) return { updated: 0, skipped: 0 };
-  fs.mkdirSync(UPLOADS_DIR, { recursive: true });
+  if (!cloudinary.isEnabled()) fs.mkdirSync(UPLOADS_DIR, { recursive: true });
 
   const products = await prisma.product.findMany({
     select: { id: true, slug: true, nameEn: true, imageUrl: true, images: { select: { imageUrl: true } } },
@@ -51,7 +60,8 @@ async function seedProductImages(prisma) {
       skipped++;
       continue;
     }
-    const urls = files.map(publish);
+    const urls = [];
+    for (const file of files) urls.push(await publish(file));
     await prisma.$transaction([
       prisma.productImage.deleteMany({ where: { productId: product.id } }),
       prisma.productImage.createMany({

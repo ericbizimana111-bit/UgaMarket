@@ -1,0 +1,83 @@
+# Render Blueprint — UgaMarket API (free plan).
+# Render dashboard → New → Blueprint → pick this repository.
+# See docs/FREE_DEPLOYMENT.md for the full walkthrough.
+#
+# Free-plan notes:
+# - No pre-deploy command on free: migrations run at start (idempotent).
+# - No shell on free: the first start seeds an EMPTY database automatically
+#   (seeds/seedIfEmpty.js); later starts never re-seed.
+# - Ephemeral disk: product photos MUST go to Cloudinary (CLOUDINARY_URL).
+# - Health check uses /api/ping (no database) so the free Neon database can sleep.
+services:
+  - type: web
+    name: ugamarket-api
+    runtime: node
+    plan: free
+    region: frankfurt
+    rootDir: backend
+    buildCommand: npm ci && npx prisma generate
+    startCommand: npx prisma migrate deploy && node seeds/seedIfEmpty.js && node server.js
+    healthCheckPath: /api/ping
+    autoDeployTrigger: commit
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Neon "direct" connection string (not the -pooler one), e.g.
+      # postgresql://user:pass@ep-xxx.eu-central-1.aws.neon.tech/ugamarket?sslmode=require&connection_limit=5
+      - key: DATABASE_URL
+        sync: false
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_JWT_SECRET
+        generateValue: true
+      - key: JWT_EXPIRES_IN
+        value: 7d
+      - key: ADMIN_JWT_EXPIRES_IN
+        value: 1d
+      # First super-admin (used only by the first-start seed)
+      - key: ADMIN_1_EMAIL
+        sync: false
+      - key: ADMIN_1_PASSWORD
+        sync: false
+      - key: ADMIN_1_NAME
+        value: Owner
+      - key: ADMIN_2_EMAIL
+        sync: false
+      - key: ADMIN_2_PASSWORD
+        sync: false
+      - key: ADMIN_2_NAME
+        value: Operations
+      # Your two Vercel URLs, comma-separated (no trailing slash)
+      - key: CORS_ORIGIN
+        sync: false
+      - key: FRONTEND_URL
+        sync: false
+      - key: PAYMENT_PROVIDER
+        value: FLUTTERWAVE
+      # TEST until Flutterwave approves your live account, then LIVE
+      - key: PAYMENT_MODE
+        value: TEST
+      - key: FLW_PUBLIC_KEY
+        sync: false
+      - key: FLW_SECRET_KEY
+        sync: false
+      # Same value as the "secret hash" in Flutterwave → Settings → Webhooks
+      - key: PAYMENT_WEBHOOK_SECRET
+        generateValue: true
+      # cloudinary://<api_key>:<api_secret>@<cloud_name>  (Cloudinary dashboard)
+      - key: CLOUDINARY_URL
+        sync: false
+      - key: WAREHOUSE_LATITUDE
+        value: "0.3136"
+      - key: WAREHOUSE_LONGITUDE
+        value: "32.5811"
+      - key: GEOCODER_PROVIDER
+        value: NOMINATIM
+      - key: ROUTING_PROVIDER
+        value: OSRM
+      - key: GEO_CONTACT_EMAIL
+        sync: false
+      - key: TRANSLATION_PROVIDER
+        value: MYMEMORY
+      - key: MYMEMORY_EMAIL
+        sync: false

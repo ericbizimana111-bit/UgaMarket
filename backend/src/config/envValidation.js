@@ -164,6 +164,16 @@ function validateProductionConfig(config, rawEnv = {}) {
     problems.push('TRANSLATION_PROVIDER=LIBRETRANSLATE requires LIBRETRANSLATE_URL.');
   }
 
+  // Hosts with an ephemeral filesystem (Render sets RENDER=true) lose every
+  // locally stored photo on restart/redeploy: require Cloudinary there.
+  const cloudinaryUrl = String(config.CLOUDINARY_URL || '').trim();
+  if (rawEnv.RENDER && !cloudinaryUrl) {
+    problems.push('CLOUDINARY_URL is required on Render: its disk is wiped on every restart, so product photos must be stored on Cloudinary.');
+  }
+  if (cloudinaryUrl && !/^cloudinary:\/\/[^:]+:[^@]+@[^/?#]+$/.test(cloudinaryUrl)) {
+    problems.push('CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name> (copy it from the Cloudinary dashboard).');
+  }
+
   return problems;
 }
 

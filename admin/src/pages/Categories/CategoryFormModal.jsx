@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { Languages, Save, Trash2, X } from 'lucide-react';
-import api from '../../services/api';
+import api, { resolveImageUrl } from '../../services/api';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
 import IconPicker from '../../components/ui/IconPicker';
 import ImageDropzone from '../../components/ui/ImageDropzone';
@@ -245,7 +245,7 @@ export default function CategoryFormModal({ category, onClose, onSaved, onImageC
             {(isEdit ? imageUrl : pendingImage?.previewUrl) && (
               <div className="cat-modal__preview">
                 <img
-                  src={isEdit ? imageUrl : pendingImage.previewUrl}
+                  src={isEdit ? resolveImageUrl(imageUrl) : pendingImage.previewUrl}
                   alt="Category"
                   onError={(e) => {
                     e.target.onerror = null;

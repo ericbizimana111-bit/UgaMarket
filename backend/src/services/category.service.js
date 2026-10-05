@@ -348,7 +348,7 @@ async function uploadCategoryImage(id, file, adminId = null, ipAddress = null) {
     throw new AppError('No image file received. Send multipart/form-data with an "image" field', 400);
   }
 
-  const publicUrl = imageService.saveImageFile(file.buffer, file.mimetype);
+  const publicUrl = await imageService.saveImageFile(file.buffer, file.mimetype);
 
   const updated = await prisma.category.update({
     where: { id: categoryId },

@@ -123,7 +123,7 @@ adminRouter.post(
     const existing = await prisma.service.findUnique({ where: { id: req.params.id } });
     if (!existing) throw new AppError('Service not found', 404);
     if (!req.file) throw new AppError('No image file received. Send multipart/form-data with an "image" field', 400);
-    const url = imageService.saveImageFile(req.file.buffer, req.file.mimetype);
+    const url = await imageService.saveImageFile(req.file.buffer, req.file.mimetype);
     const service = await svc.updateService(req.params.id, { imageUrl: url }, req.admin.id, req.ip);
     if (existing.imageUrl && existing.imageUrl !== url) await imageService.cleanupOrphanedImageFile(existing.imageUrl);
     res.json({ success: true, data: { service } });

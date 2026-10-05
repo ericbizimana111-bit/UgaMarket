@@ -3,6 +3,7 @@ const path = require('path');
 const crypto = require('crypto');
 const prisma = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
+const cloudinary = require('./cloudinary.service');
 
 /**
  * Product image file storage service.
@@ -115,10 +116,14 @@ function validateImageBuffer(buffer, declaredMimetype) {
 
 /**
  * Persist a validated image buffer under a server-generated safe filename.
- * Returns the public URL path ("/images/<name>") stored in the database.
+ * Returns the URL stored in the database: a Cloudinary CDN URL when
+ * CLOUDINARY_URL is configured, otherwise the local path "/images/<name>".
  */
-function saveImageFile(buffer, declaredMimetype) {
+async function saveImageFile(buffer, declaredMimetype) {
   const ext = validateImageBuffer(buffer, declaredMimetype);
+  if (cloudinary.isEnabled()) {
+    return cloudinary.uploadImage(buffer, { filename: `upload${ext}` });
+  }
   ensureUploadsDir();
   const filename = `${crypto.randomUUID()}${ext}`;
   const absolutePath = path.join(UPLOADS_DIR, filename);
@@ -146,12 +151,13 @@ function isLocalImageUrl(imageUrl) {
  * truth for visibility; leftover files are harmless).
  */
 async function findImageReferences(imageUrl) {
-  const [imageRows, productRefs, categoryRefs] = await Promise.all([
+  const [imageRows, productRefs, categoryRefs, serviceRefs] = await Promise.all([
     prisma.productImage.count({ where: { imageUrl } }),
     prisma.product.count({ where: { imageUrl } }),
     prisma.category.count({ where: { imageUrl } }),
+    prisma.service.count({ where: { imageUrl } }),
   ]);
-  return imageRows + productRefs + categoryRefs;
+  return imageRows + productRefs + categoryRefs + serviceRefs;
 }
 
 /**
@@ -162,9 +168,12 @@ async function findImageReferences(imageUrl) {
  */
 async function cleanupOrphanedImageFile(imageUrl) {
   try {
-    if (!isLocalImageUrl(imageUrl)) return false;
+    const onCloudinary = cloudinary.isCloudinaryUrl(imageUrl);
+    if (!onCloudinary && !isLocalImageUrl(imageUrl)) return false;
     const references = await findImageReferences(imageUrl);
     if (references > 0) return false; // still referenced elsewhere — keep the file
+    // Shared sample photos are never deleted by an admin replacing one copy.
+    if (onCloudinary) return imageUrl.includes('/seed/') ? false : await cloudinary.destroyImage(imageUrl);
 
     const filename = path.basename(imageUrl);
     const absolutePath = path.join(UPLOADS_DIR, filename);
