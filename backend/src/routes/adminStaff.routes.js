@@ -6,7 +6,7 @@ const { logAudit } = require('../services/audit.service');
 const staff = require('../services/staff.service');
 
 /**
- * Staff accounts (SUPER_ADMIN only).
+ * Staff accounts — managed only by the single SUPER_ADMIN (the owner).
  *  GET    /api/admin/staff
  *  POST   /api/admin/staff                      { fullName, email, password, role }
  *  PATCH  /api/admin/staff/:id                  { fullName?, role?, isActive? }
@@ -17,8 +17,9 @@ router.use(authenticateAdmin, requireRole('SUPER_ADMIN'));
 
 const wrap = (fn) => (req, res, next) => Promise.resolve(fn(req, res)).catch(next);
 
-const roleEnum = z.enum(['SUPER_ADMIN', 'ADMIN', 'DISPATCHER'], {
-  errorMap: () => ({ message: 'Role must be SUPER_ADMIN, ADMIN or DISPATCHER' }),
+// Only one super admin exists (the owner); staff get ADMIN or DISPATCHER.
+const roleEnum = z.enum(['ADMIN', 'DISPATCHER'], {
+  errorMap: () => ({ message: 'Role must be ADMIN or DISPATCHER (there is only one super admin: the owner)' }),
 });
 const password = z
   .string({ required_error: 'Password is required' })

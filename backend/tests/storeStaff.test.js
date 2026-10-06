@@ -5,7 +5,7 @@
  *   GET  /api/store                       — public contact details + FAQs (localized)
  *   GET/PUT /api/admin/content/store      — store profile (ADMIN+ write, DISPATCHER read)
  *   CRUD /api/admin/content/faqs          — FAQs
- *   /api/admin/staff                      — SUPER_ADMIN-only staff management
+ *   /api/admin/staff                      — staff management by the ONE super admin (owner)
  */
 
 const request = require('supertest');
@@ -37,7 +37,10 @@ describe('Store content & staff management', () => {
   const createdFaqIds = [];
 
   beforeAll(async () => {
-    superAdmin = await makeAdmin('SUPER_ADMIN', 'Super');
+    // There is exactly one super admin (the owner); use it, or create it on an
+    // empty database.
+    const owner = await prisma.admin.findFirst({ where: { role: 'SUPER_ADMIN' } });
+    superAdmin = owner ? { admin: owner, token: signAdminToken(owner) } : await makeAdmin('SUPER_ADMIN', 'Owner');
     admin = await makeAdmin('ADMIN', 'Admin');
     dispatcher = await makeAdmin('DISPATCHER', 'Dispatcher');
     originalStore = await prisma.storeProfile.upsert({ where: { id: 1 }, update: {}, create: { id: 1 } });
@@ -191,7 +194,7 @@ describe('Store content & staff management', () => {
     let newStaffId;
     const email = `new.dispatcher${TEST_DOMAIN}`;
 
-    test('only SUPER_ADMIN can manage staff', async () => {
+    test('only the owner (super admin) can manage staff', async () => {
       const asAdmin = await request(app).get('/api/admin/staff').set('Authorization', `Bearer ${admin.token}`);
       expect(asAdmin.statusCode).toBe(403);
       const asSuper = await request(app).get('/api/admin/staff').set('Authorization', `Bearer ${superAdmin.token}`);
@@ -256,7 +259,7 @@ describe('Store content & staff management', () => {
       expect(blocked.statusCode).toBe(401);
     });
 
-    test('a super admin cannot demote or deactivate themselves', async () => {
+    test('the owner cannot be demoted or deactivated', async () => {
       const demote = await request(app)
         .patch(`/api/admin/staff/${superAdmin.admin.id}`)
         .set('Authorization', `Bearer ${superAdmin.token}`)
@@ -269,22 +272,46 @@ describe('Store content & staff management', () => {
       expect(off.statusCode).toBe(409);
     });
 
-    test('the last active super admin cannot be removed', async () => {
+    test('nobody can be created as, or promoted to, super admin', async () => {
+      const create = await request(app)
+        .post('/api/admin/staff')
+        .set('Authorization', `Bearer ${superAdmin.token}`)
+        .send({ fullName: 'Second Owner', email: `second.owner${TEST_DOMAIN}`, password: 'Owner2026xyz', role: 'SUPER_ADMIN' });
+      expect(create.statusCode).toBe(400);
+      expect(create.body.errors[0].message).toMatch(/only one super admin/i);
+
+      const promote = await request(app)
+        .patch(`/api/admin/staff/${admin.admin.id}`)
+        .set('Authorization', `Bearer ${superAdmin.token}`)
+        .send({ role: 'SUPER_ADMIN' });
+      expect(promote.statusCode).toBe(400);
+
+      // The service refuses it too (defence in depth behind the route validator).
       const staffService = require('../src/services/staff.service');
-      // Temporarily make our test super admin the only active one.
-      const others = await prisma.admin.findMany({
-        where: { role: 'SUPER_ADMIN', isActive: true, id: { not: superAdmin.admin.id } },
-        select: { id: true },
-      });
-      const otherIds = others.map((o) => o.id);
-      await prisma.admin.updateMany({ where: { id: { in: otherIds } }, data: { isActive: false } });
-      try {
-        await expect(
-          staffService.updateStaff({ id: admin.admin.id }, superAdmin.admin.id, { isActive: false })
-        ).rejects.toMatchObject({ statusCode: 409 });
-      } finally {
-        await prisma.admin.updateMany({ where: { id: { in: otherIds } }, data: { isActive: true } });
-      }
+      await expect(staffService.updateStaff(superAdmin.admin, admin.admin.id, { role: 'SUPER_ADMIN' })).rejects.toMatchObject({ statusCode: 422 });
+      expect(staffService.ASSIGNABLE_ROLES).toEqual(['ADMIN', 'DISPATCHER']);
+    });
+
+    test('the database itself refuses a second super admin', async () => {
+      await expect(
+        prisma.admin.create({
+          data: { fullName: 'Sneaky', email: `sneaky${TEST_DOMAIN}`, passwordHash: 'x', role: 'SUPER_ADMIN' },
+        })
+      ).rejects.toMatchObject({ code: 'P2002' });
+      expect(await prisma.admin.count({ where: { role: 'SUPER_ADMIN' } })).toBe(1);
+    });
+
+    test('the owner assigns roles: dispatcher <-> admin', async () => {
+      const toAdmin = await request(app)
+        .patch(`/api/admin/staff/${dispatcher.admin.id}`)
+        .set('Authorization', `Bearer ${superAdmin.token}`)
+        .send({ role: 'ADMIN' });
+      expect(toAdmin.body.data.staff.role).toBe('ADMIN');
+      const back = await request(app)
+        .patch(`/api/admin/staff/${dispatcher.admin.id}`)
+        .set('Authorization', `Bearer ${superAdmin.token}`)
+        .send({ role: 'DISPATCHER' });
+      expect(back.body.data.staff.role).toBe('DISPATCHER');
     });
   });
 });

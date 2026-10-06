@@ -12,25 +12,34 @@ async function main() {
   console.log('👤 Seeding administrators from environment variables...');
   const salt = await bcrypt.genSalt(12);
 
+  // ADMIN_1 is the owner: the ONE super admin. If an owner already exists
+  // under another email, ADMIN_1 becomes a regular admin instead (a second
+  // super admin is refused by the database).
+  const existingOwner = await prisma.admin.findFirst({ where: { role: 'SUPER_ADMIN' }, select: { email: true } });
+  const admin1Role = !existingOwner || existingOwner.email.toLowerCase() === env.ADMIN_1_EMAIL.toLowerCase() ? 'SUPER_ADMIN' : 'ADMIN';
+  if (admin1Role !== 'SUPER_ADMIN') {
+    console.log(`ℹ️  Owner (super admin) is already ${existingOwner.email}; ${env.ADMIN_1_EMAIL} is seeded as ADMIN.`);
+  }
   const admin1PasswordHash = await bcrypt.hash(env.ADMIN_1_PASSWORD, salt);
   await prisma.admin.upsert({
     where: { email: env.ADMIN_1_EMAIL },
     update: {
       fullName: env.ADMIN_1_NAME,
       passwordHash: admin1PasswordHash,
-      role: 'SUPER_ADMIN',
+      role: admin1Role,
       isActive: true,
     },
     create: {
       fullName: env.ADMIN_1_NAME,
       email: env.ADMIN_1_EMAIL,
       passwordHash: admin1PasswordHash,
-      role: 'SUPER_ADMIN',
+      role: admin1Role,
       isActive: true,
     },
   });
 
   const admin2PasswordHash = await bcrypt.hash(env.ADMIN_2_PASSWORD, salt);
+  if (env.ADMIN_2_EMAIL === env.ADMIN_1_EMAIL) throw new Error('ADMIN_2_EMAIL must differ from ADMIN_1_EMAIL (the owner)');
   await prisma.admin.upsert({
     where: { email: env.ADMIN_2_EMAIL },
     update: {

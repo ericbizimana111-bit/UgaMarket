@@ -3,15 +3,19 @@ const prisma = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
 
 /**
- * Staff (admin console) accounts, managed by SUPER_ADMINs.
+ * Staff (admin console) accounts.
  *
- * Safety rules:
- *  - a super admin cannot demote or deactivate their own account (no
- *    accidental self-lockout);
- *  - the last active SUPER_ADMIN can never be demoted or deactivated.
+ * UgaMarket has exactly ONE super admin: the owner. Only the owner manages
+ * staff and assigns the roles that can be given out: ADMIN or DISPATCHER.
+ *  - nobody can be created as, or promoted to, SUPER_ADMIN (also enforced by
+ *    the database index "admins_single_super_admin");
+ *  - the owner account can never be demoted or deactivated (no lock-out).
  * Deactivation takes effect on the very next request: the admin auth
  * middleware re-checks isActive for every call.
  */
+
+/** Roles the owner can assign to other people. */
+const ASSIGNABLE_ROLES = ['ADMIN', 'DISPATCHER'];
 
 const SAFE_SELECT = {
   id: true,
@@ -33,6 +37,9 @@ async function listStaff() {
 
 async function createStaff({ fullName, email, password, role }) {
   const normalizedEmail = email.trim().toLowerCase();
+  if (!ASSIGNABLE_ROLES.includes(role)) {
+    throw new AppError('There is only one super admin (the owner). New staff can be ADMIN or DISPATCHER.', 422);
+  }
   const clash = await prisma.admin.findUnique({ where: { email: normalizedEmail }, select: { id: true } });
   if (clash) throw new AppError('A staff account with this email already exists', 409);
   const passwordHash = await bcrypt.hash(password, 12);
@@ -43,28 +50,26 @@ async function createStaff({ fullName, email, password, role }) {
 }
 
 async function updateStaff(actor, id, { fullName, role, isActive }) {
-  return prisma.$transaction(async (tx) => {
-    const target = await tx.admin.findUnique({ where: { id }, select: SAFE_SELECT });
-    if (!target) throw new AppError('Staff account not found', 404);
+  const target = await prisma.admin.findUnique({ where: { id }, select: SAFE_SELECT });
+  if (!target) throw new AppError('Staff account not found', 404);
 
-    const demoting = role !== undefined && target.role === 'SUPER_ADMIN' && role !== 'SUPER_ADMIN';
-    const deactivating = isActive === false && target.isActive;
-
-    if (actor.id === id && (demoting || deactivating)) {
-      throw new AppError('You cannot demote or deactivate your own account', 409);
+  if (role !== undefined && !ASSIGNABLE_ROLES.includes(role)) {
+    throw new AppError('There is only one super admin (the owner). Staff can be ADMIN or DISPATCHER.', 422);
+  }
+  if (target.role === 'SUPER_ADMIN') {
+    // The owner keeps full control: their role and access cannot be removed.
+    if (role !== undefined && role !== 'SUPER_ADMIN') {
+      throw new AppError('The owner (super admin) role cannot be changed', 409);
     }
-    if ((demoting || deactivating) && target.role === 'SUPER_ADMIN' && target.isActive) {
-      // Lock every super admin row so two concurrent demotions cannot both pass.
-      await tx.$queryRaw`SELECT id FROM admins WHERE role = 'SUPER_ADMIN' FOR UPDATE`;
-      const others = await tx.admin.count({ where: { role: 'SUPER_ADMIN', isActive: true, id: { not: id } } });
-      if (others === 0) throw new AppError('UgaMarket must keep at least one active super admin', 409);
+    if (isActive === false) {
+      throw new AppError('The owner (super admin) account cannot be deactivated', 409);
     }
+  }
 
-    return tx.admin.update({
-      where: { id },
-      data: { fullName: fullName !== undefined ? fullName.trim() : undefined, role, isActive },
-      select: SAFE_SELECT,
-    });
+  return prisma.admin.update({
+    where: { id },
+    data: { fullName: fullName !== undefined ? fullName.trim() : undefined, role, isActive },
+    select: SAFE_SELECT,
   });
 }
 
@@ -77,6 +82,7 @@ async function resetStaffPassword(id, password) {
 }
 
 module.exports = {
+  ASSIGNABLE_ROLES,
   listStaff,
   createStaff,
   updateStaff,

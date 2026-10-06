@@ -11,10 +11,18 @@ import { hasRole, useAuth } from '../../context/AuthContext';
 import { formatDate, formatRole } from '../../utils/format';
 import './StaffPage.css';
 
+// Roles the owner can give out. There is only ONE super admin: the owner.
 const ROLE_OPTIONS = [
-  { value: 'DISPATCHER', label: 'Dispatcher', hint: 'Orders, deliveries, bookings, customer messages.' },
-  { value: 'ADMIN', label: 'Admin', hint: 'Everything a dispatcher does, plus catalogue, pricing and storefront content.' },
-  { value: 'SUPER_ADMIN', label: 'Super admin', hint: 'Full control, including staff accounts.' },
+  {
+    value: 'DISPATCHER',
+    label: 'Dispatcher',
+    hint: 'Orders, deliveries, service bookings, technicians and customer chat. Cannot change products, prices or settings.',
+  },
+  {
+    value: 'ADMIN',
+    label: 'Admin',
+    hint: 'Everything a dispatcher does, plus products, categories, stock, delivery fees, deposit rule, customers and storefront content. Cannot manage staff.',
+  },
 ];
 const ROLE_TONE = { SUPER_ADMIN: 'badge--danger', ADMIN: 'badge--info', DISPATCHER: 'badge--neutral' };
 const EMPTY = { fullName: '', email: '', password: '', role: 'DISPATCHER' };
@@ -62,7 +70,7 @@ export default function StaffPage() {
     return (
       <div>
         <PageHeader title="Staff accounts" description="Manage who can sign in to the Operations Console." />
-        <EmptyState title="Super admins only" message="Ask a super admin to add, change or remove staff accounts." />
+        <EmptyState title="Owner only" message="Only the owner (the super admin) can add people and assign roles." />
       </div>
     );
   }
@@ -88,7 +96,9 @@ export default function StaffPage() {
       if (isNew) {
         await api.post('/admin/staff', { fullName: form.fullName.trim(), email: form.email.trim(), password: form.password, role: form.role });
       } else {
-        await api.patch(`/admin/staff/${editing.id}`, { fullName: form.fullName.trim(), role: form.role });
+        // The owner's role is permanent: only their name can change.
+        const body = editing.role === 'SUPER_ADMIN' ? { fullName: form.fullName.trim() } : { fullName: form.fullName.trim(), role: form.role };
+        await api.patch(`/admin/staff/${editing.id}`, body);
       }
       showToast(isNew ? 'Staff account created. Share the password with them securely.' : 'Staff account updated.', { type: 'success' });
       setEditing(null);
@@ -143,7 +153,18 @@ export default function StaffPage() {
         </span>
       ),
     },
-    { key: 'role', header: 'Role', render: (s) => <span className={`badge ${ROLE_TONE[s.role] || 'badge--neutral'}`}>{formatRole(s.role)}</span> },
+    {
+      key: 'role',
+      header: 'Role',
+      render: (s) =>
+        s.role === 'SUPER_ADMIN' ? (
+          <span className="badge badge--danger staff-owner">
+            <ShieldCheck size={12} aria-hidden="true" /> Owner · Super admin
+          </span>
+        ) : (
+          <span className={`badge ${ROLE_TONE[s.role] || 'badge--neutral'}`}>{formatRole(s.role)}</span>
+        ),
+    },
     { key: 'assignedDeliveries', header: 'Deliveries handled', render: (s) => s.assignedDeliveries ?? 0 },
     { key: 'createdAt', header: 'Added', render: (s) => formatDate(s.createdAt) },
     {
@@ -170,7 +191,7 @@ export default function StaffPage() {
           >
             <KeyRound size={13} aria-hidden="true" /> Reset password
           </button>
-          {s.id !== me?.id && (
+          {s.role !== 'SUPER_ADMIN' && s.id !== me?.id && (
             <button type="button" className="btn btn--ghost btn--sm" onClick={() => setToggling(s)}>
               {s.isActive ? <UserX size={13} aria-hidden="true" /> : <UserCheck size={13} aria-hidden="true" />}
               {s.isActive ? 'Deactivate' : 'Reactivate'}
@@ -182,13 +203,13 @@ export default function StaffPage() {
   ];
 
   const isNew = editing === 'new';
-  const selfEdit = editing && editing !== 'new' && editing.id === me?.id;
+  const ownerEdit = editing && editing !== 'new' && editing.role === 'SUPER_ADMIN';
 
   return (
     <div>
       <PageHeader
         title="Staff accounts"
-        description="Everyone who can sign in to the Operations Console. Deactivating an account signs that person out immediately."
+        description="Everyone who can sign in to the Operations Console. You are the owner (the only super admin): add people and give them the Admin or Dispatcher role. Deactivating an account signs that person out immediately."
         actions={
           <button type="button" className="btn btn--primary" onClick={() => openEditor(null)}>
             <Plus size={15} aria-hidden="true" /> Add staff member
@@ -252,21 +273,24 @@ export default function StaffPage() {
               <span className="field-hint">At least 10 characters with letters and numbers. Share it privately; you can reset it any time.</span>
             </div>
           )}
-          <fieldset className="staff-roles" disabled={saving || selfEdit}>
-            <legend>Role</legend>
-            {ROLE_OPTIONS.map((r) => (
-              <label key={r.value} className={`staff-role ${form.role === r.value ? 'staff-role--on' : ''}`}>
-                <input type="radio" name="staff-role" value={r.value} checked={form.role === r.value} onChange={() => setForm({ ...form, role: r.value })} />
-                <span>
-                  <strong>
-                    {r.value === 'SUPER_ADMIN' && <ShieldCheck size={13} aria-hidden="true" />} {r.label}
-                  </strong>
-                  <span className="text-muted">{r.hint}</span>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-          {selfEdit && <p className="field-hint">You cannot change your own role. Ask another super admin.</p>}
+          {ownerEdit ? (
+            <p className="field-hint staff-owner-note">
+              <ShieldCheck size={13} aria-hidden="true" /> This is the owner account: the only super admin. Its role and access are permanent; only the owner manages staff.
+            </p>
+          ) : (
+            <fieldset className="staff-roles" disabled={saving}>
+              <legend>Role</legend>
+              {ROLE_OPTIONS.map((r) => (
+                <label key={r.value} className={`staff-role ${form.role === r.value ? 'staff-role--on' : ''}`}>
+                  <input type="radio" name="staff-role" value={r.value} checked={form.role === r.value} onChange={() => setForm({ ...form, role: r.value })} />
+                  <span>
+                    <strong>{r.label}</strong>
+                    <span className="text-muted">{r.hint}</span>
+                  </span>
+                </label>
+              ))}
+            </fieldset>
+          )}
           <div className="modal__actions">
             <button type="button" className="btn btn--secondary" onClick={() => setEditing(null)} disabled={saving}>
               Cancel

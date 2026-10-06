@@ -64,7 +64,7 @@ const NAV_SECTIONS = [
     label: 'Customers',
     items: [
       { to: '/messages', label: 'Messages', icon: MessageCircle, roles: OPERATIONS_ROLES, badge: 'messages' },
-      { to: '/customers', label: 'Customers', icon: Users, roles: OPERATIONS_ROLES },
+      { to: '/customers', label: 'Customers', icon: Users, roles: CATALOG_ROLES },
     ],
   },
   {
