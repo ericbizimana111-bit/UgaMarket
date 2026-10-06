@@ -321,3 +321,48 @@ describe('image storage on ephemeral hosts', () => {
     expect(cloudinaryProblems(c, c)).toEqual([]);
   });
 });
+
+describe('template placeholders and admin password strength', () => {
+  const { validateProductionConfig: validate } = require('../src/config/envValidation');
+  const good = {
+    NODE_ENV: 'production',
+    DATABASE_URL: 'postgresql://u:p@db.example.com:5432/ugamarket',
+    JWT_SECRET: 'j'.repeat(40),
+    ADMIN_JWT_SECRET: 'a'.repeat(40),
+    ADMIN_1_PASSWORD: 'Owner-Strong-Pass-2026',
+    ADMIN_2_PASSWORD: 'Ops-Strong-Pass-2026',
+    CORS_ORIGIN: 'https://ugamarket.vercel.app',
+    PAYMENT_PROVIDER: 'FLUTTERWAVE',
+    PAYMENT_MODE: 'TEST',
+    FLW_PUBLIC_KEY: 'FLWPUBK_TEST-0123456789abcdef0123456789abcdef',
+    FLW_SECRET_KEY: 'FLWSECK_TEST-0123456789abcdef0123456789abcdef',
+    PAYMENT_WEBHOOK_SECRET: 'w'.repeat(32),
+    PAYMENT_ATTEMPT_TTL_MINUTES: 30,
+  };
+
+  test('a complete configuration has no placeholder/password problems', () => {
+    expect(validate(good, good).filter((p) => /placeholder like|must be at least 10/.test(p))).toEqual([]);
+  });
+
+  test('values copied unfilled from the template are refused (any variable)', () => {
+    const c = { ...good, ADMIN_1_PASSWORD: '<ADMIN_1_PASSWORD>', CORS_ORIGIN: 'https://<customer-domain>' };
+    const problems = validate(c, c);
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('ADMIN_1_PASSWORD still contains a template placeholder'),
+        expect.stringContaining('CORS_ORIGIN still contains a template placeholder'),
+      ])
+    );
+  });
+
+  test('weak owner / admin passwords are refused', () => {
+    const c = { ...good, ADMIN_1_PASSWORD: 'password', ADMIN_2_PASSWORD: '12345678901' };
+    const problems = validate(c, c);
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('ADMIN_1_PASSWORD must be at least 10 characters'),
+        expect.stringContaining('ADMIN_2_PASSWORD must be at least 10 characters'),
+      ])
+    );
+  });
+});

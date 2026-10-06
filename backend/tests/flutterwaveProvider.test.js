@@ -18,11 +18,9 @@
 const PREVIOUS_FLW_ENV = {
   FLW_PUBLIC_KEY: process.env.FLW_PUBLIC_KEY,
   FLW_SECRET_KEY: process.env.FLW_SECRET_KEY,
-  FLW_RETURN_URL: process.env.FLW_RETURN_URL,
 };
 process.env.FLW_PUBLIC_KEY = process.env.FLW_PUBLIC_KEY || 'FLWPUBK_TEST-dummy-public-key';
 process.env.FLW_SECRET_KEY = process.env.FLW_SECRET_KEY || 'FLWSECK_TEST-dummy-secret-key';
-process.env.FLW_RETURN_URL = process.env.FLW_RETURN_URL || 'http://localhost:4000/api/payments/return';
 
 const env = require('../src/config/env');
 

@@ -40,14 +40,10 @@ const envSchema = z.object({
   // without any real credentials (tests must never call the real API).
   FLW_PUBLIC_KEY: z.string().default(''),
   FLW_SECRET_KEY: z.string().default(''),
-  // Card payment redirect URL: Flutterwave redirects the customer here after
-  // hosted-checkout completion. Must be a public HTTPS URL in production.
-  // Not required for mobile money payments or the MOCK provider.
-  FLW_RETURN_URL: z.string().default(''),
   PAYMENT_WEBHOOK_SECRET: z.string().default('ufm_mock_webhook_secret_2026'),
   PAYMENT_ATTEMPT_TTL_MINUTES: z.coerce.number().int().min(1).max(1440).default(30),
-  // Frontend base URL: used by the return-URL handler to build the redirect
-  // target after card payment. Defaults to the CRA dev server.
+  // Public URL of the customer shop: customers are sent back here after a
+  // payment step (GET /api/payments/return). Defaults to the CRA dev server.
   FRONTEND_URL: z.string().default('http://localhost:3000'),
 
   // Image storage. When CLOUDINARY_URL is set (cloudinary://<key>:<secret>@<cloud>),
@@ -122,8 +118,16 @@ if (parsed.data.NODE_ENV === 'production') {
 // External providers default to off under test so the suite never reaches
 // the network; everywhere else they default to the free public services.
 const isTest = parsed.data.NODE_ENV === 'test';
-parsed.data.GEOCODER_PROVIDER = parsed.data.GEOCODER_PROVIDER || (isTest ? 'NONE' : 'NOMINATIM');
-parsed.data.ROUTING_PROVIDER = parsed.data.ROUTING_PROVIDER || (isTest ? 'NONE' : 'OSRM');
-parsed.data.TRANSLATION_PROVIDER = parsed.data.TRANSLATION_PROVIDER || (isTest ? 'NONE' : 'MYMEMORY');
+// Tests never call external services, whatever backend/.env says (individual
+// tests switch a provider on explicitly and mock the network).
+parsed.data.GEOCODER_PROVIDER = isTest ? 'NONE' : parsed.data.GEOCODER_PROVIDER || 'NOMINATIM';
+parsed.data.ROUTING_PROVIDER = isTest ? 'NONE' : parsed.data.ROUTING_PROVIDER || 'OSRM';
+parsed.data.TRANSLATION_PROVIDER = isTest ? 'NONE' : parsed.data.TRANSLATION_PROVIDER || 'MYMEMORY';
+if (isTest) {
+  // Never upload to a real Cloudinary account or charge through a real payment
+  // provider from the test suite, even if backend/.env is configured for them.
+  parsed.data.CLOUDINARY_URL = '';
+  parsed.data.PAYMENT_PROVIDER = 'MOCK';
+}
 
 module.exports = parsed.data;

@@ -68,6 +68,23 @@ function validateProductionConfig(config, rawEnv = {}) {
     }
   }
 
+  // 2b. Template placeholders left unfilled (e.g. "<ADMIN_1_PASSWORD>",
+  //     "https://<customer-domain>") are never valid configuration.
+  for (const [variable, value] of Object.entries(rawEnv || {})) {
+    if (/^[A-Z][A-Z0-9_]*$/.test(variable) && /<[A-Za-z][A-Za-z0-9_-]*>/.test(String(value))) {
+      problems.push(`${variable} still contains a template placeholder like <...>; replace it with the real value.`);
+    }
+  }
+
+  // 2c. Owner / first admin passwords: same strength as staff passwords
+  //     (at least 10 characters with letters and numbers).
+  for (const variable of ['ADMIN_1_PASSWORD', 'ADMIN_2_PASSWORD']) {
+    const value = rawEnv[variable] !== undefined ? String(rawEnv[variable]) : '';
+    if (value && !(value.length >= 10 && /[A-Za-z]/.test(value) && /\d/.test(value))) {
+      problems.push(`${variable} must be at least 10 characters and contain letters and numbers.`);
+    }
+  }
+
   // 3. Minimum secret quality for cryptographic use.
   for (const variable of PRODUCTION_SECRET_VARS) {
     const value = config[variable] !== undefined ? String(config[variable]) : '';
