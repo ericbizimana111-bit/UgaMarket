@@ -384,7 +384,7 @@ describe('JJuma Global production configuration', () => {
     JJUMA_API_BASE_URL: 'https://api.jjuma.com',
     JJUMA_PUBLIC_KEY: 'bp_test_pub_0123456789abcdef0123',
     JJUMA_SECRET_KEY: 'bp_test_sec_0123456789abcdef0123',
-    JJUMA_WEBHOOK_SECRET: 'whsec_0123456789abcdef0123456789',
+    JJUMA_WEBHOOK_SECRET: 'jjuma_config_test_signing_secret_0123456789',
     PAYMENT_WEBHOOK_SECRET: 'w'.repeat(32),
     PAYMENT_ATTEMPT_TTL_MINUTES: 30,
     ...overrides,
