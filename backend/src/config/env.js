@@ -32,12 +32,19 @@ const envSchema = z.object({
   WAREHOUSE_LONGITUDE: z.coerce.number().default(32.5811),
 
   // Payment
-  PAYMENT_PROVIDER: z.enum(['MOCK', 'FLUTTERWAVE', 'MTN_MOMO', 'AIRTEL_MONEY']).default('MOCK'),
+  PAYMENT_PROVIDER: z.enum(['MOCK', 'JJUMA', 'FLUTTERWAVE', 'MTN_MOMO', 'AIRTEL_MONEY']).default('MOCK'),
   // TEST (sandbox) | LIVE. Real credentials are only required in production
   // (validated in config/envValidation.js); tests never need them.
   PAYMENT_MODE: z.enum(['TEST', 'LIVE']).default('TEST'),
-  // Flutterwave credentials. Empty defaults keep development/test running
-  // without any real credentials (tests must never call the real API).
+  // JJuma Global (active provider). Public key creates hosted-checkout
+  // payments; secret key verifies them server-side; the webhook secret is the
+  // dashboard signing secret (Dashboard > Tools > Webhooks). Empty defaults
+  // keep development/test running without real credentials.
+  JJUMA_API_BASE_URL: z.string().default('https://api.jjuma.com'),
+  JJUMA_PUBLIC_KEY: z.string().default(''),
+  JJUMA_SECRET_KEY: z.string().default(''),
+  JJUMA_WEBHOOK_SECRET: z.string().default(''),
+  // Flutterwave credentials (dormant; kept for a possible future switch).
   FLW_PUBLIC_KEY: z.string().default(''),
   FLW_SECRET_KEY: z.string().default(''),
   PAYMENT_WEBHOOK_SECRET: z.string().default('ufm_mock_webhook_secret_2026'),

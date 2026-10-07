@@ -70,6 +70,7 @@ enum PaymentResultCode {
 enum PaymentProvider {
   MOCK
   FLUTTERWAVE
+  JJUMA
   MTN_MOMO
   AIRTEL_MONEY
   CASH

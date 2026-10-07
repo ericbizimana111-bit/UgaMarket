@@ -153,8 +153,18 @@ const OrderDetail = () => {
 
   // Poll while a provider attempt is in flight (the webhook settles it).
   const activePayment = paymentInfo?.activePayment || null;
+  const hadActivePaymentRef = useRef(false);
   useEffect(() => {
-    if (!activePayment) return undefined;
+    if (!activePayment) {
+      // The attempt just settled: refresh once more so the order status
+      // (fetched in parallel with the payment) is up to date.
+      if (hadActivePaymentRef.current) {
+        hadActivePaymentRef.current = false;
+        fetchOrderDetails();
+      }
+      return undefined;
+    }
+    hadActivePaymentRef.current = true;
     pollTimerRef.current = setTimeout(fetchOrderDetails, 4000);
     return () => clearTimeout(pollTimerRef.current);
   }, [activePayment, fetchOrderDetails]);

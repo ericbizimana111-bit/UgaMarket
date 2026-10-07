@@ -52,16 +52,25 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      # Payments: JJuma Global hosted checkout (MTN MoMo + Airtel Money)
       - key: PAYMENT_PROVIDER
-        value: FLUTTERWAVE
-      # TEST until Flutterwave approves your live account, then LIVE
+        value: JJUMA
+      # TEST with bp_test_ keys; switch to LIVE together with bp_live_ keys
       - key: PAYMENT_MODE
         value: TEST
-      - key: FLW_PUBLIC_KEY
+      - key: JJUMA_API_BASE_URL
+        value: https://api.jjuma.com
+      # JJuma dashboard → API Keys (public key creates payments)
+      - key: JJUMA_PUBLIC_KEY
         sync: false
-      - key: FLW_SECRET_KEY
+      # JJuma dashboard → API Keys (secret key verifies payments; server only)
+      - key: JJUMA_SECRET_KEY
         sync: false
-      # Same value as the "secret hash" in Flutterwave → Settings → Webhooks
+      # JJuma dashboard → Tools → Webhooks → signing secret. Webhook URL to
+      # register there: https://<this-service>.onrender.com/api/payments/webhook
+      - key: JJUMA_WEBHOOK_SECRET
+        sync: false
+      # Internal signing secret (development mock provider); any random value
       - key: PAYMENT_WEBHOOK_SECRET
         generateValue: true
       # cloudinary://<api_key>:<api_secret>@<cloud_name>  (Cloudinary dashboard)

@@ -62,6 +62,10 @@ async function paymentWebhook(req, res, next) {
   try {
     const result = await paymentService.processWebhook(req.rawBody, req.headers);
     const { payment, order, duplicate, ignored, failed, verified } = result;
+    if (!payment) {
+      // Authentic event that is not a payment result (e.g. settlement.*)
+      return res.status(200).json({ success: true, event: 'IGNORED' });
+    }
     res.status(200).json({
       success: true,
       event: duplicate ? 'ALREADY_PROCESSED' : ignored ? 'IGNORED' : verified ? 'PAYMENT_APPLIED' : 'PAYMENT_FAILED_RECORDED',

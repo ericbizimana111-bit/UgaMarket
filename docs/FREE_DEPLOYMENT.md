@@ -10,7 +10,7 @@ traffic grows (see "Limits & when to upgrade").
 | API (Node/Express) | **Render** web service, Frankfurt | `https://ugamarket-api.onrender.com` |
 | Database (PostgreSQL) | **Neon**, Frankfurt (`aws-eu-central-1`) | — |
 | Product photos | **Cloudinary** | `https://res.cloudinary.com/...` |
-| Payments | Flutterwave (MTN MoMo + Airtel Money) | — |
+| Payments | JJuma Global (MTN MoMo + Airtel Money) | — |
 | Keep-awake pinger | **cron-job.org** (or UptimeRobot) | — |
 
 > **Why Neon and not Render's database?** Render's free PostgreSQL is
@@ -73,7 +73,8 @@ git add -A && git commit -m "Prepare free deployment" && git push origin main
 | `ADMIN_2_EMAIL` / `ADMIN_2_PASSWORD` | a first regular admin (different email, same password rule) |
 | `CORS_ORIGIN` | for now `https://ugamarket.vercel.app,https://ugamarket-admin.vercel.app` (fix in step 6 if Vercel gives other names) |
 | `FRONTEND_URL` | `https://ugamarket.vercel.app` |
-| `FLW_PUBLIC_KEY` / `FLW_SECRET_KEY` | Flutterwave dashboard → Settings → API keys (TEST keys first) |
+| `JJUMA_PUBLIC_KEY` / `JJUMA_SECRET_KEY` | JJuma dashboard → API Keys (`bp_test_` keys first; needs a verified **business** account) |
+| `JJUMA_WEBHOOK_SECRET` | JJuma dashboard → Tools → Webhooks → signing secret (step 8) |
 | `GEO_CONTACT_EMAIL`, `MYMEMORY_EMAIL` | a real email address you read |
 
    `JWT_SECRET`, `ADMIN_JWT_SECRET` and `PAYMENT_WEBHOOK_SECRET` are generated
@@ -144,15 +145,24 @@ sleep when nobody is shopping (protecting its free compute hours). One service
 running all month uses ~744 of Render's 750 free hours — don't run a second
 free Render service.
 
-## 8. Payments — Flutterwave webhook
+## 8. Payments — JJuma Global webhook
 
-Flutterwave → Settings → **Webhooks**:
+JJuma dashboard → **Tools → Webhooks** → add a destination:
 
 - URL: `https://ugamarket-api.onrender.com/api/payments/webhook`
-- Secret hash: copy the value of `PAYMENT_WEBHOOK_SECRET` from Render → Environment.
+- Events: `payment.completed`, `payment.failed`, `payment.cancelled`
+- Save and **enable** it, then copy the **signing secret** into Render →
+  `JJUMA_WEBHOOK_SECRET`.
 
-Test with Flutterwave TEST keys first. When Flutterwave approves your business,
-switch Render's `PAYMENT_MODE` to `LIVE` and paste the **live** keys.
+Use the dashboard webhook — UgaMarket never sends a per-payment `webhook_url`,
+because JJuma does not sign those. Every success is also re-checked with
+JJuma's verify API before an order is marked paid, and if a webhook is missed
+(e.g. the API was asleep) the order page settles the payment on its next check.
+
+Test with `bp_test_` keys first (no real money). When JJuma approves your
+business for live payments, set Render's `PAYMENT_MODE` to `LIVE` **and**
+paste the `bp_live_` keys in the same save — the API refuses to start if the
+mode and the keys don't match.
 
 ## 9. First-day checklist (admin console)
 
@@ -204,5 +214,6 @@ Keep copies in Google Drive or similar. Photos are already safe on Cloudinary.
 | Browser console shows CORS / API returns 403 | `CORS_ORIGIN` on Render must list the exact Vercel URLs (https, no trailing `/`) |
 | First request after a while takes ~1 minute | the pinger (step 7) is not running |
 | API won't start: "CLOUDINARY_URL is required on Render" | set `CLOUDINARY_URL` (step 2) |
-| Payments stay pending | webhook URL / secret hash (step 8) |
+| Payments stay pending | webhook URL, enabled events and `JJUMA_WEBHOOK_SECRET` (step 8); Render log shows `PAYMENT_WEBHOOK_REJECTED` reasons |
+| Checkout says "Payment initiation failed" | JJuma keys / business verification; Render log shows the HTTP status from JJuma |
 | Render log: "Can't reach database server" | `DATABASE_URL` must be Neon's **direct** string with `sslmode=require` |

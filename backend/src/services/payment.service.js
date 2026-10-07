@@ -18,12 +18,24 @@ const { formatUGX } = require('../utils/currency');
 // UgaMarket accepts mobile money only: MTN MoMo and Airtel Money.
 const PROVIDER_METHOD_SUPPORT = {
   MOCK: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY']),
+  // JJuma hosted checkout: the customer confirms the network on pay.jjuma.com
+  JJUMA: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY']),
   FLUTTERWAVE: new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY']),
 };
+
+// Minimum gap between server-side reconciliation checks of one attempt
+// (the order page polls every few seconds while a payment is in flight).
+const RECONCILE_MIN_INTERVAL_MS = 15000;
+const lastReconcileAt = new Map();
 
 // Provider initiation result fields that may be surfaced to the frontend.
 // Everything else (raw provider payloads, internal notes) stays server-side.
 const PROVIDER_INITIATION_FIELDS = ['providerRef', 'checkoutUrl', 'resultCode', 'failureMessage'];
+
+// Initiation calls the provider API while holding the order lock; Prisma's
+// default 5 s interactive-transaction timeout is shorter than a provider
+// round trip can take (adapters time out at 15 s), so allow for it.
+const PROVIDER_CALL_TX_OPTIONS = { maxWait: 10000, timeout: 30000 };
 
 const PAYMENT_ATTEMPT_TTL_MINUTES = env.PAYMENT_ATTEMPT_TTL_MINUTES || 30;
 const CURRENCY = 'UGX';
@@ -240,7 +252,7 @@ function assertMethodSupported(provider, method) {
  * with a clear business error — fake addresses are never invented, and no
  * identity fields are stored on the Payment row.
  */
-function resolveCustomerIdentity(user, method) {
+function resolveCustomerIdentity(user, method, provider) {
   if (!user || !user.phone) {
     throw new AppError('Customer mobile number is required for payment', 422);
   }
@@ -248,7 +260,8 @@ function resolveCustomerIdentity(user, method) {
   if (!phone.isValid || !phone.normalized) {
     throw new AppError('Customer mobile number is invalid for payment', 422);
   }
-  if (method === 'MTN_MOBILE_MONEY' || method === 'AIRTEL_MONEY') {
+  const emailRequired = !provider || provider.requiresCustomerEmail !== false;
+  if (emailRequired && (method === 'MTN_MOBILE_MONEY' || method === 'AIRTEL_MONEY')) {
     if (!user.email) {
       throw new AppError(
         'A customer email address is required for mobile money payments. Add an email to your account and try again.',
@@ -269,7 +282,7 @@ function resolveCustomerIdentity(user, method) {
  * initiation input. The method is a non-authoritative rail hint from the
  * request; amount/currency/references are the server-authoritative DB values.
  */
-function buildProviderPaymentInput(attempt, order, { method } = {}) {
+function buildProviderPaymentInput(attempt, order, { method } = {}, provider = null) {
   return {
     transactionRef: attempt.transactionRef,
     providerRef: attempt.providerRef || null,
@@ -277,7 +290,11 @@ function buildProviderPaymentInput(attempt, order, { method } = {}) {
     currency: attempt.currency,
     purpose: attempt.purpose,
     method: method || null,
-    customer: resolveCustomerIdentity(order.user, method),
+    orderNumber: order.orderNumber,
+    // Hosted checkouts send the customer back to their order page, which
+    // polls until the server has verified the result.
+    returnUrl: `${String(env.FRONTEND_URL || '').replace(/\/+$/, '')}/account/orders/${order.id}`,
+    customer: resolveCustomerIdentity(order.user, method, provider),
   };
 }
 
@@ -396,7 +413,7 @@ async function initiateCommitmentPayment(userId, orderId, options = {}) {
     }
 
     // 5. Ask provider to initiate/refresh the charge
-    const result = await provider.initiatePayment({ payment: buildProviderPaymentInput(attempt, order, options) });
+    const result = await provider.initiatePayment({ payment: buildProviderPaymentInput(attempt, order, options, provider) });
     assertInitiationAccepted(result, attempt);
     attempt = await tx.payment.update({
       where: { id: attempt.id },
@@ -423,7 +440,7 @@ async function initiateCommitmentPayment(userId, orderId, options = {}) {
     });
 
     return { payment: attempt, order, reused: false, initiation: sanitizeInitiation(result) };
-  });
+  }, PROVIDER_CALL_TX_OPTIONS);
 }
 
 // ============================================================
@@ -553,7 +570,7 @@ async function initiateBalancePayment(userId, orderId, options = {}) {
     }
 
     // 8. Ask provider to initiate/refresh the charge
-    const result = await provider.initiatePayment({ payment: buildProviderPaymentInput(attempt, order, options) });
+    const result = await provider.initiatePayment({ payment: buildProviderPaymentInput(attempt, order, options, provider) });
     assertInitiationAccepted(result, attempt);
     attempt = await tx.payment.update({
       where: { id: attempt.id },
@@ -581,7 +598,7 @@ async function initiateBalancePayment(userId, orderId, options = {}) {
     });
 
     return { payment: attempt, order, balance, reused: false, initiation: sanitizeInitiation(result) };
-  });
+  }, PROVIDER_CALL_TX_OPTIONS);
 }
 
 // ============================================================
@@ -629,8 +646,126 @@ async function processWebhook(rawBody, headers) {
     });
     throw new AppError('Webhook verification failed', 400);
   }
+  if (verification.ignore) {
+    // Authentic, but not a payment result (e.g. settlement events): acknowledge.
+    logger.info('[payment] webhook event ignored', { provider: provider.name, eventType: verification.eventType });
+    return { ignored: true, payment: null, order: null };
+  }
   const event = verification.event;
 
+  // 1b. Providers that require it: a success claim is re-confirmed with the
+  // provider's authenticated verify API before anything changes. An
+  // unconfirmed success is rejected with a retryable error (the provider
+  // redelivers) — never applied.
+  if (event.outcome === 'SUCCESS' && provider.confirmsSuccessViaApi) {
+    const check = await provider.verifyPayment({ providerRef: event.providerRef });
+    const confirmed = check && check.ok === true && check.outcome === 'SUCCESS';
+    const amountMismatch = confirmed && check.amountUgx !== null && check.amountUgx !== undefined && check.amountUgx !== event.amountUgx;
+    const currencyMismatch = confirmed && check.currency && check.currency !== event.currency;
+    if (!confirmed || amountMismatch || currencyMismatch) {
+      const reason = !confirmed ? 'PROVIDER_VERIFICATION_FAILED' : 'PROVIDER_VERIFICATION_MISMATCH';
+      await logAudit({
+        action: 'PAYMENT_WEBHOOK_REJECTED',
+        entityName: 'Payment',
+        entityId: 'unknown',
+        details: {
+          provider: provider.name,
+          providerRef: event.providerRef,
+          reason,
+          verifyResultCode: (check && check.resultCode) || null,
+        },
+      });
+      throw new AppError(
+        confirmed ? 'Webhook does not match the provider transaction' : 'Payment could not be confirmed with the provider yet',
+        confirmed ? 422 : 502
+      );
+    }
+    event.apiConfirmed = true;
+  }
+
+  return applyProviderEvent(provider, event);
+}
+
+// ============================================================
+// SERVER-SIDE RECONCILIATION (webhook safety net)
+// A webhook can be missed (e.g. a sleeping free-tier host misses JJuma's
+// 10-second delivery window). For providers that support it, in-flight
+// attempts are re-checked through the provider's authenticated verify API
+// whenever the order's payment state is read (the order page polls while a
+// payment is in flight). Only an API-confirmed SUCCESS with the exact
+// authoritative amount/currency is applied — through the same idempotent
+// path as webhooks. Never throws: a provider outage leaves state unchanged.
+// ============================================================
+async function reconcileOrderPayments(orderId) {
+  let provider;
+  try {
+    provider = getPaymentProvider(env.PAYMENT_PROVIDER);
+  } catch {
+    return;
+  }
+  if (!provider.supportsReconciliation || (env.NODE_ENV === 'production' && !provider.isProduction)) return;
+
+  const candidates = await prisma.payment.findMany({
+    where: {
+      orderId,
+      provider: provider.name,
+      providerRef: { not: null },
+      status: { in: ['PENDING', 'PROCESSING', 'EXPIRED'] },
+      // A just-expired attempt can still be paid on the hosted page
+      createdAt: { gte: new Date(Date.now() - 24 * 60 * 60 * 1000) },
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 3,
+  });
+
+  for (const payment of candidates) {
+    const last = lastReconcileAt.get(payment.id) || 0;
+    if (Date.now() - last < RECONCILE_MIN_INTERVAL_MS) continue;
+    lastReconcileAt.set(payment.id, Date.now());
+    if (lastReconcileAt.size > 5000) lastReconcileAt.clear();
+
+    try {
+      const check = await provider.verifyPayment({ providerRef: payment.providerRef });
+      if (!check || check.ok !== true || check.outcome !== 'SUCCESS') continue;
+      // The verify response must itself prove the exact amount/currency.
+      if (check.amountUgx !== payment.amountUgx || check.currency !== CURRENCY) {
+        logger.warn('[payment] reconciliation skipped: provider amount/currency not confirmed', {
+          provider: provider.name,
+          paymentId: payment.id,
+        });
+        continue;
+      }
+      const result = await applyProviderEvent(provider, {
+        providerRef: payment.providerRef,
+        orderNumber: payment.transactionRef,
+        amountUgx: check.amountUgx,
+        currency: check.currency,
+        outcome: 'SUCCESS',
+        purpose: payment.purpose,
+        resultCode: 'SUCCESS',
+        failureMessage: null,
+        occurredAt: new Date().toISOString(),
+        apiConfirmed: true,
+      });
+      if (result && result.verified) {
+        logger.info('[payment] attempt settled by reconciliation', { provider: provider.name, paymentId: payment.id });
+      }
+    } catch (error) {
+      logger.warn('[payment] reconciliation check failed', {
+        provider: provider.name,
+        paymentId: payment.id,
+        message: error.message,
+      });
+    }
+  }
+}
+
+/**
+ * Apply an AUTHENTICATED, normalized provider event to the matching attempt
+ * (shared by webhooks and server-side reconciliation): validates it against
+ * the authoritative DB state, then transitions payment + order exactly once.
+ */
+async function applyProviderEvent(provider, event) {
   const postCommitAudits = [];
   let result;
   try {
@@ -647,13 +782,13 @@ async function processWebhook(rawBody, headers) {
           },
         },
       });
-      if (!payment) {
+      if (!payment && event.orderNumber) {
         // tx_ref fallback (Phase 12 Step 2 §9): Flutterwave's UG mobile-money
         // initiation returns no flw_ref/id, so providerRef may still be null
         // when the FIRST webhook arrives. Resolve the attempt through the
-        // UgaMarket transactionRef (sent as tx_ref) — then the authoritative
-        // providerRef is established below. @@unique([provider, providerRef])
-        // remains untouched.
+        // UgaMarket transactionRef (sent as tx_ref / JJuma metadata) — then
+        // the authoritative providerRef is established below.
+        // @@unique([provider, providerRef]) remains untouched.
         payment = await tx.payment.findFirst({
           where: { provider: provider.name, transactionRef: event.orderNumber },
           include: {
@@ -686,14 +821,28 @@ async function processWebhook(rawBody, headers) {
         return err;
       };
 
-      if (payment.order.orderNumber !== event.orderNumber && event.orderNumber !== payment.transactionRef) {
+      // Events correlated by providerRef may carry no order reference (JJuma
+      // without metadata); when one is present it must match.
+      if (
+        event.orderNumber &&
+        payment.order.orderNumber !== event.orderNumber &&
+        event.orderNumber !== payment.transactionRef
+      ) {
         throw reject('Webhook order reference mismatch', 422, 'ORDER_MISMATCH');
       }
-      if (payment.order.currency !== event.currency || event.currency !== CURRENCY) {
-        throw reject('Webhook currency mismatch', 422, 'CURRENCY_MISMATCH');
+      // A SUCCESS always carries (and must match) amount and currency. A
+      // failure moves no money, so a failure event that omits them is still
+      // accepted; if present they must match.
+      const isSuccess = event.outcome === 'SUCCESS';
+      if (isSuccess || event.currency) {
+        if (payment.order.currency !== event.currency || event.currency !== CURRENCY) {
+          throw reject('Webhook currency mismatch', 422, 'CURRENCY_MISMATCH');
+        }
       }
-      if (payment.amountUgx !== event.amountUgx) {
-        throw reject('Webhook amount mismatch', 422, 'AMOUNT_MISMATCH');
+      if (isSuccess || (event.amountUgx !== null && event.amountUgx !== undefined)) {
+        if (payment.amountUgx !== event.amountUgx) {
+          throw reject('Webhook amount mismatch', 422, 'AMOUNT_MISMATCH');
+        }
       }
       if (event.purpose && event.purpose !== payment.purpose) {
         throw reject('Webhook purpose mismatch', 422, 'PURPOSE_MISMATCH');
@@ -704,9 +853,38 @@ async function processWebhook(rawBody, headers) {
         // Duplicate delivery of an already-processed success: acknowledge, change nothing
         return { payment, order: payment.order, duplicate: true };
       }
-      if (!['PENDING', 'PROCESSING'].includes(payment.status)) {
-        // FAILED / CANCELLED / EXPIRED attempts cannot be resurrected by a webhook
+      // A success the provider's own API has confirmed means money really
+      // moved — even when it lands after our attempt expired or after an
+      // earlier failure event for the same hosted checkout. It is applied when
+      // the order is still payable, otherwise surfaced for staff review;
+      // it is never silently dropped.
+      const lateConfirmedSuccess =
+        event.outcome === 'SUCCESS' && event.apiConfirmed === true && ['FAILED', 'EXPIRED'].includes(payment.status);
+      if (!['PENDING', 'PROCESSING'].includes(payment.status) && !lateConfirmedSuccess) {
+        // FAILED / CANCELLED / EXPIRED attempts cannot be resurrected by an
+        // unconfirmed webhook
         return { payment, order: payment.order, ignored: true };
+      }
+      if (lateConfirmedSuccess) {
+        const payableStatuses = payment.purpose === 'BALANCE' ? ['DELIVERED', 'BALANCE_PAID'] : ['PENDING_PAYMENT'];
+        if (!payableStatuses.includes(payment.order.status)) {
+          postCommitAudits.push({
+            action: 'PAYMENT_RECEIVED_NEEDS_REVIEW',
+            entityName: 'Payment',
+            entityId: payment.id,
+            details: {
+              orderId: payment.orderId,
+              orderNumber: payment.order.orderNumber,
+              purpose: payment.purpose,
+              provider: provider.name,
+              providerRef: event.providerRef,
+              amountUgx: event.amountUgx,
+              attemptStatus: payment.status,
+              orderStatus: payment.order.status,
+            },
+          });
+          return { payment, order: payment.order, ignored: true, needsReview: true };
+        }
       }
 
       // Check order payable state
@@ -908,6 +1086,22 @@ async function processWebhook(rawBody, headers) {
  * Duplicates/ignored events notify nobody. Never throws.
  */
 async function notifyPaymentOutcome(result) {
+  if (result && result.needsReview && result.payment) {
+    try {
+      const payment = result.payment;
+      const order = result.order;
+      await notifications.notifyAdmins({
+        type: notifications.ADMIN_NOTIFICATION_TYPES.PAYMENT_RECEIVED,
+        title: `Payment needs review — ${order.orderNumber}`,
+        message: `A ${formatUGX(payment.amountUgx)} ${payment.purpose === 'BALANCE' ? 'balance' : 'deposit'} payment was confirmed by ${payment.provider} after the order moved to ${order.status}. Check the order and refund the customer if it was paid twice.`,
+        linkUrl: `/orders/${order.id}`,
+        orderId: order.id,
+      });
+    } catch (error) {
+      logger.error('[payment] review notification failed:', error.message);
+    }
+    return;
+  }
   if (!result || result.duplicate || result.ignored || !result.payment) return;
   try {
     const payment = result.payment;
@@ -970,12 +1164,17 @@ async function notifyPaymentOutcome(result) {
 // CUSTOMER: payment lookup (ownership-enforced, full financial visibility)
 // ============================================================
 async function getCustomerOrderPayment(userId, orderId) {
-  const order = await prisma.order.findFirst({
+  const owned = await prisma.order.findFirst({
     where: { id: orderId, userId },
+    select: { id: true },
   });
-  if (!order) {
+  if (!owned) {
     throw new AppError('Order not found', 404);
   }
+
+  await reconcileOrderPayments(owned.id);
+  // Read the order AFTER reconciliation so a just-settled payment is reflected.
+  const order = await prisma.order.findUnique({ where: { id: owned.id } });
 
   const payments = await prisma.payment.findMany({
     where: { orderId: order.id },
@@ -1015,6 +1214,10 @@ async function getCustomerOrderPayment(userId, orderId) {
 // ADMIN: read-only payment visibility (no financial mutation here)
 // ============================================================
 async function getAdminOrderPayment(orderId) {
+  const exists = await prisma.order.findUnique({ where: { id: orderId }, select: { id: true } });
+  if (exists) {
+    await reconcileOrderPayments(exists.id);
+  }
   const order = await prisma.order.findUnique({
     where: { id: orderId },
     include: { delivery: true },

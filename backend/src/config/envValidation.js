@@ -126,6 +126,11 @@ function validateProductionConfig(config, rawEnv = {}) {
     if (origins.length === 0) {
       problems.push('CORS_ORIGIN must list at least one explicit origin in production.');
     }
+    if (origins.some((origin) => /^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin))) {
+      problems.push(
+        'CORS_ORIGIN must not contain localhost origins in production; list the real shop and admin URLs (e.g. the Vercel domains).'
+      );
+    }
   }
 
   // 6. The mock payment provider must never be selected in production.
@@ -171,6 +176,47 @@ function validateProductionConfig(config, rawEnv = {}) {
     }
   }
 
+  // 8. JJuma Global (active provider): real dashboard keys, the dashboard
+  // webhook signing secret, and an https return URL are required. JJuma API
+  // keys are prefixed bp_test_ (sandbox) or bp_live_ (live); the prefix must
+  // match PAYMENT_MODE so a sandbox key can never silently run "live" (and
+  // vice versa). Only variable NAMES are reported.
+  if (provider === 'JJUMA' && (mode === 'LIVE' || config.NODE_ENV === 'production')) {
+    const jjumaKeys = ['JJUMA_PUBLIC_KEY', 'JJUMA_SECRET_KEY'];
+    for (const name of jjumaKeys) {
+      const value = String(config[name] || '').trim();
+      if (!value) {
+        problems.push(`${name} is required in production when PAYMENT_PROVIDER=JJUMA (copy it from the JJuma dashboard).`);
+      } else if (looksLikePlaceholder(value)) {
+        problems.push(`${name} is set to an obvious placeholder/dummy value and is rejected in production.`);
+      } else if (!/^bp_(test|live)_/.test(value)) {
+        problems.push(`${name} does not look like a JJuma API key (expected the bp_test_ or bp_live_ prefix).`);
+      } else if (mode === 'LIVE' && value.startsWith('bp_test_')) {
+        problems.push(`PAYMENT_MODE=LIVE is configured but ${name} is a TEST key (bp_test_).`);
+      } else if (mode === 'TEST' && value.startsWith('bp_live_')) {
+        problems.push(`PAYMENT_MODE=TEST is configured but ${name} is a LIVE key (bp_live_); set PAYMENT_MODE=LIVE to take real payments.`);
+      }
+    }
+    const webhookSecret = String(config.JJUMA_WEBHOOK_SECRET || '').trim();
+    if (!webhookSecret) {
+      problems.push(
+        'JJUMA_WEBHOOK_SECRET is required in production when PAYMENT_PROVIDER=JJUMA (Dashboard > Tools > Webhooks signing secret).'
+      );
+    } else if (looksLikePlaceholder(webhookSecret)) {
+      problems.push('JJUMA_WEBHOOK_SECRET is set to an obvious placeholder/dummy value and is rejected in production.');
+    }
+    if (!/^https:\/\//i.test(String(config.JJUMA_API_BASE_URL || ''))) {
+      problems.push('JJUMA_API_BASE_URL must be an https:// URL.');
+    }
+    // Customers are sent back to FRONTEND_URL after JJuma checkout.
+    const frontendUrl = String(rawEnv.FRONTEND_URL || '').trim();
+    if (!frontendUrl) {
+      problems.push('FRONTEND_URL is required in production when PAYMENT_PROVIDER=JJUMA (customers return there after paying).');
+    } else if (!/^https:\/\//i.test(frontendUrl) || /localhost|127\.0\.0\.1/i.test(frontendUrl)) {
+      problems.push('FRONTEND_URL must be the public https:// shop URL in production (not localhost).');
+    }
+  }
+
   // Automatic catalogue translation: a selected provider must be usable,
   // otherwise every non-English shopper silently sees English.
   const translation = String(rawEnv.TRANSLATION_PROVIDER || config.TRANSLATION_PROVIDER || '').toUpperCase();
@@ -208,9 +254,13 @@ function looksLikeFlutterwavePlaceholder(value) {
   return unique <= 2; // e.g. "xxxxxxxx", "0000000000"
 }
 
+// Same placeholder shapes apply to any provider credential.
+const looksLikePlaceholder = looksLikeFlutterwavePlaceholder;
+
 module.exports = {
   validateProductionConfig,
   looksLikeFlutterwavePlaceholder,
+  looksLikePlaceholder,
   PRODUCTION_MIN_SECRET_LENGTH,
   PRODUCTION_REQUIRED_RAW,
   PRODUCTION_FORBIDDEN_VALUES,

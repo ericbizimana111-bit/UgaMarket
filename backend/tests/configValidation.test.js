@@ -366,3 +366,81 @@ describe('template placeholders and admin password strength', () => {
     );
   });
 });
+
+describe('JJuma Global production configuration', () => {
+  const { validateProductionConfig: validate } = require('../src/config/envValidation');
+  // Dashboard-shaped dummy keys (NOT real credentials).
+  const jjuma = (overrides = {}) => ({
+    NODE_ENV: 'production',
+    DATABASE_URL: 'postgresql://u:p@db.example.com:5432/ugamarket',
+    JWT_SECRET: 'j'.repeat(40),
+    ADMIN_JWT_SECRET: 'a'.repeat(40),
+    ADMIN_1_PASSWORD: 'Owner-Strong-Pass-2026',
+    ADMIN_2_PASSWORD: 'Ops-Strong-Pass-2026',
+    CORS_ORIGIN: 'https://ugamarket.vercel.app,https://ugamarket-admin.vercel.app',
+    FRONTEND_URL: 'https://ugamarket.vercel.app',
+    PAYMENT_PROVIDER: 'JJUMA',
+    PAYMENT_MODE: 'TEST',
+    JJUMA_API_BASE_URL: 'https://api.jjuma.com',
+    JJUMA_PUBLIC_KEY: 'bp_test_pub_0123456789abcdef0123',
+    JJUMA_SECRET_KEY: 'bp_test_sec_0123456789abcdef0123',
+    JJUMA_WEBHOOK_SECRET: 'whsec_0123456789abcdef0123456789',
+    PAYMENT_WEBHOOK_SECRET: 'w'.repeat(32),
+    PAYMENT_ATTEMPT_TTL_MINUTES: 30,
+    ...overrides,
+  });
+  const check = (c) => validate(c, c);
+
+  test('a complete JJuma TEST configuration passes', () => {
+    expect(check(jjuma())).toEqual([]);
+  });
+
+  test('a complete JJuma LIVE configuration passes', () => {
+    expect(
+      check(jjuma({ PAYMENT_MODE: 'LIVE', JJUMA_PUBLIC_KEY: 'bp_live_pub_0123456789abcdef', JJUMA_SECRET_KEY: 'bp_live_sec_0123456789abcdef' }))
+    ).toEqual([]);
+  });
+
+  test('missing keys and webhook secret are refused', () => {
+    const problems = check(jjuma({ JJUMA_PUBLIC_KEY: '', JJUMA_SECRET_KEY: '', JJUMA_WEBHOOK_SECRET: '' }));
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('JJUMA_PUBLIC_KEY is required'),
+        expect.stringContaining('JJUMA_SECRET_KEY is required'),
+        expect.stringContaining('JJUMA_WEBHOOK_SECRET is required'),
+      ])
+    );
+  });
+
+  test('placeholders and non-JJuma-shaped keys are refused', () => {
+    const problems = check(jjuma({ JJUMA_PUBLIC_KEY: 'replace_with_public_key', JJUMA_SECRET_KEY: 'sk_live_somethingelse_123' }));
+    expect(problems).toEqual(
+      expect.arrayContaining([
+        expect.stringContaining('JJUMA_PUBLIC_KEY is set to an obvious placeholder'),
+        expect.stringContaining('JJUMA_SECRET_KEY does not look like a JJuma API key'),
+      ])
+    );
+  });
+
+  test('TEST keys in LIVE mode, and LIVE keys in TEST mode, are refused', () => {
+    expect(check(jjuma({ PAYMENT_MODE: 'LIVE' }))).toContainEqual(expect.stringContaining('JJUMA_PUBLIC_KEY is a TEST key'));
+    expect(check(jjuma({ JJUMA_SECRET_KEY: 'bp_live_sec_0123456789abcdef' }))).toContainEqual(
+      expect.stringContaining('JJUMA_SECRET_KEY is a LIVE key')
+    );
+  });
+
+  test('FRONTEND_URL must be the public https shop URL', () => {
+    const missing = jjuma();
+    delete missing.FRONTEND_URL;
+    expect(check(missing)).toContainEqual(expect.stringContaining('FRONTEND_URL is required'));
+    expect(check(jjuma({ FRONTEND_URL: 'http://localhost:3000' }))).toContainEqual(
+      expect.stringContaining('FRONTEND_URL must be the public https:// shop URL')
+    );
+  });
+
+  test('localhost CORS origins are refused in production', () => {
+    expect(check(jjuma({ CORS_ORIGIN: 'http://localhost,http://localhost:8080' }))).toContainEqual(
+      expect.stringContaining('CORS_ORIGIN must not contain localhost origins')
+    );
+  });
+});

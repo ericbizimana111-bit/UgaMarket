@@ -207,3 +207,23 @@ When a balance payment webhook succeeds:
 
 - `tests/balancePayment.test.js`: 14 comprehensive tests covering fulfillment boundaries, server-authoritative balance calculation, idempotency, webhook security, failures/retries, order completion, notifications, replay protection, IDOR/RBAC, and concurrency races.
 - `scripts/marketplace-e2e.js`: end-to-end checks against a running API (order, signed deposit webhook, live staff notifications, chat, home services).
+
+---
+
+## JJuma Global (active production provider)
+
+Adapter: `src/services/paymentProviders/jjumaProvider.js` · `PAYMENT_PROVIDER=JJUMA` · built only from the official JJuma docs (doc.jjuma.com).
+
+| Step | What happens |
+|---|---|
+| Initiation | `POST https://api.jjuma.com/api/v1/payments/create` with the **public** key. Server-authoritative `amount` (UGX), `customer_name`, `customer_phone`, optional `customer_email`, `external_order_id` = `idempotency_key` = `Payment.transactionRef`, `metadata.transaction_ref`, `redirect_url`/`cancel_redirect_url` = `${FRONTEND_URL}/account/orders/<orderId>`. Response `data.transaction_id` → `Payment.providerRef`; `data.payment_url` (must be `https://pay.jjuma.com/…`) → `checkoutUrl`. |
+| Network choice | The customer picks MTN MoMo / Airtel Money on JJuma's hosted page (the API has no field to pre-select it); the UgaMarket choice is a non-authoritative hint. |
+| Webhook | Dashboard webhook only (Tools → Webhooks → `…/api/payments/webhook`; events `payment.completed`, `payment.failed`, `payment.cancelled`). Verified with `HMAC-SHA256(JJUMA_WEBHOOK_SECRET, X-Jjuma-Timestamp + "." + rawBody)` against `X-Jjuma-Signature` (timing-safe), timestamp within ±5 min. Request-level `webhook_url` is never sent (JJuma does not sign those). Other authentic events are acknowledged with 200 and ignored. |
+| Server-side confirmation | Every `payment.completed` is re-checked with `GET /api/v1/payments/verify/{transaction_id}` (**secret** key; paid ⇔ `status=success` and `data.status=successful`). Unconfirmed → `502` (JJuma redelivers), nothing changes. Amount/currency must match the DB. |
+| Missed webhooks | `GET /api/orders/:id/payment` (polled by the order page) and the admin payment view reconcile in-flight attempts through the verify API (throttled to once per 15 s per attempt). Applied only when the verify response proves the exact amount and UGX. |
+| Late success | An API-confirmed success for an attempt that already EXPIRED/FAILED is applied if the order is still payable; otherwise it is never applied twice — it raises a **"Payment needs review"** admin notification + `PAYMENT_RECEIVED_NEEDS_REVIEW` audit so staff can refund. |
+| Failures | `payment.failed` / `payment.cancelled` mark the attempt FAILED (amount optional in the payload); the order stays unpaid and the customer can retry. |
+
+Environment: `JJUMA_API_BASE_URL`, `JJUMA_PUBLIC_KEY`, `JJUMA_SECRET_KEY`, `JJUMA_WEBHOOK_SECRET`, `PAYMENT_MODE` (`TEST` ⇔ `bp_test_` keys, `LIVE` ⇔ `bp_live_` keys), `FRONTEND_URL`. Production refuses to start when any is missing, a placeholder, or mismatched.
+
+Tests: `tests/jjumaProvider.test.js` (adapter), `tests/jjumaPayments.test.js` (end-to-end with a fake JJuma API), `tests/configValidation.test.js` (production config).

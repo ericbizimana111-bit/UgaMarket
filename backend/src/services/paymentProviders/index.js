@@ -13,6 +13,15 @@
  *                                          authoritative result of a charge
  *   verifyWebhook({ rawBody, headers })  – validate signature authenticity and
  *                                          return the NORMALIZED event payload
+ *                                          (or { ok:true, ignore:true } for
+ *                                          events that are not payment results)
+ *
+ * Optional capability flags:
+ *   confirmsSuccessViaApi   – success webhooks are re-confirmed with
+ *                             verifyPayment before any state change
+ *   supportsReconciliation  – pending attempts may be settled from
+ *                             verifyPayment when a webhook never arrived
+ *   requiresCustomerEmail   – false when the provider needs no email
  *
  * Normalized event shape returned by verifyWebhook (after signature validation):
  *   { providerRef, orderNumber, amountUgx, currency, outcome: 'SUCCESS'|'FAILED',
@@ -34,11 +43,13 @@
  */
 
 const mockProvider = require('./mockProvider');
+const jjumaProvider = require('./jjumaProvider');
 const flutterwaveProvider = require('./flutterwaveProvider');
 
 const PROVIDER_REGISTRY = {
   MOCK: mockProvider,
-  FLUTTERWAVE: flutterwaveProvider,
+  JJUMA: jjumaProvider, // active production provider
+  FLUTTERWAVE: flutterwaveProvider, // dormant; available for a future switch
   // MTN_MOMO:    require('./mtnMomoProvider'),    // future phase
 };
 
