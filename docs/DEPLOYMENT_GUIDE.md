@@ -79,7 +79,6 @@ Fill **every** value. Generate secrets with `openssl rand -hex 32`.
 | `POSTGRES_PASSWORD` | a long random value (also inside `DATABASE_URL`) |
 | `JWT_SECRET`, `ADMIN_JWT_SECRET` | two **different** random values (32+ chars) |
 | `ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` | the owner's super-admin login |
-| `ADMIN_2_EMAIL` / `ADMIN_2_PASSWORD` | a second admin |
 | `CORS_ORIGIN` | `https://ugamarket.ug,https://admin.ugamarket.ug` |
 | `PAYMENT_PROVIDER` / `PAYMENT_MODE` | `FLUTTERWAVE` / `LIVE` (start with `TEST` for a dry run) |
 | `FLW_PUBLIC_KEY`, `FLW_SECRET_KEY` | from the Flutterwave dashboard |

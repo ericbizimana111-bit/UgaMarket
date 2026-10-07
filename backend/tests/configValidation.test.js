@@ -30,9 +30,6 @@ function validProductionConfig(overrides = {}) {
     ADMIN_1_EMAIL: 'admin@example.com',
     ADMIN_1_PASSWORD: 'Str0ngProductionPass!x',
     ADMIN_1_NAME: 'Primary Admin',
-    ADMIN_2_EMAIL: 'ops@example.com',
-    ADMIN_2_PASSWORD: 'An0therStr0ngPass!y',
-    ADMIN_2_NAME: 'Operations Manager',
     CORS_ORIGIN: 'https://shop.example.com,https://admin.example.com',
     PAYMENT_PROVIDER: 'FLUTTERWAVE',
     PAYMENT_MODE: 'TEST',
@@ -71,14 +68,12 @@ describe('validateProductionConfig (production environment validation)', () => {
       );
     });
 
-    test('rejects missing ADMIN_1_PASSWORD and ADMIN_2_PASSWORD', () => {
+    test('rejects missing ADMIN_1_PASSWORD', () => {
       const config = validProductionConfig();
       const raw = { ...config };
       delete raw.ADMIN_1_PASSWORD;
-      delete raw.ADMIN_2_PASSWORD;
       const problems = validateProductionConfig(config, raw);
       expect(problems.some((p) => p.includes('ADMIN_1_PASSWORD is required in production'))).toBe(true);
-      expect(problems.some((p) => p.includes('ADMIN_2_PASSWORD is required in production'))).toBe(true);
     });
 
     test('rejects blank-string secrets', () => {
@@ -111,21 +106,17 @@ describe('validateProductionConfig (production environment validation)', () => {
     test('rejects historical insecure admin password defaults', () => {
       const config = validProductionConfig({
         ADMIN_1_PASSWORD: 'AdminSecurePass123!',
-        ADMIN_2_PASSWORD: 'OpsSecurePass123!',
       });
       const problems = validateProductionConfig(config, config);
       expect(problems.some((p) => p.includes('ADMIN_1_PASSWORD is set to a known insecure placeholder/default'))).toBe(true);
-      expect(problems.some((p) => p.includes('ADMIN_2_PASSWORD is set to a known insecure placeholder/default'))).toBe(true);
     });
 
     test('rejects .env.example placeholder admin passwords', () => {
       const config = validProductionConfig({
         ADMIN_1_PASSWORD: 'change_this_admin_password_in_env',
-        ADMIN_2_PASSWORD: 'change_this_ops_password_in_env',
       });
       const problems = validateProductionConfig(config, config);
       expect(problems.some((p) => p.includes('ADMIN_1_PASSWORD is set to a known insecure placeholder/default'))).toBe(true);
-      expect(problems.some((p) => p.includes('ADMIN_2_PASSWORD is set to a known insecure placeholder/default'))).toBe(true);
     });
   });
 
@@ -288,7 +279,6 @@ describe('image storage on ephemeral hosts', () => {
       JWT_SECRET: 'j'.repeat(40),
       ADMIN_JWT_SECRET: 'a'.repeat(40),
       ADMIN_1_PASSWORD: 'Owner-Strong-Pass-2026',
-      ADMIN_2_PASSWORD: 'Ops-Strong-Pass-2026',
       CORS_ORIGIN: 'https://ugamarket.vercel.app',
       PAYMENT_PROVIDER: 'FLUTTERWAVE',
       PAYMENT_MODE: 'TEST',
@@ -330,7 +320,6 @@ describe('template placeholders and admin password strength', () => {
     JWT_SECRET: 'j'.repeat(40),
     ADMIN_JWT_SECRET: 'a'.repeat(40),
     ADMIN_1_PASSWORD: 'Owner-Strong-Pass-2026',
-    ADMIN_2_PASSWORD: 'Ops-Strong-Pass-2026',
     CORS_ORIGIN: 'https://ugamarket.vercel.app',
     PAYMENT_PROVIDER: 'FLUTTERWAVE',
     PAYMENT_MODE: 'TEST',
@@ -355,13 +344,12 @@ describe('template placeholders and admin password strength', () => {
     );
   });
 
-  test('weak owner / admin passwords are refused', () => {
-    const c = { ...good, ADMIN_1_PASSWORD: 'password', ADMIN_2_PASSWORD: '12345678901' };
+  test('a weak owner password is refused', () => {
+    const c = { ...good, ADMIN_1_PASSWORD: 'password' };
     const problems = validate(c, c);
     expect(problems).toEqual(
       expect.arrayContaining([
         expect.stringContaining('ADMIN_1_PASSWORD must be at least 10 characters'),
-        expect.stringContaining('ADMIN_2_PASSWORD must be at least 10 characters'),
       ])
     );
   });
@@ -376,7 +364,6 @@ describe('JJuma Global production configuration', () => {
     JWT_SECRET: 'j'.repeat(40),
     ADMIN_JWT_SECRET: 'a'.repeat(40),
     ADMIN_1_PASSWORD: 'Owner-Strong-Pass-2026',
-    ADMIN_2_PASSWORD: 'Ops-Strong-Pass-2026',
     CORS_ORIGIN: 'https://ugamarket.vercel.app,https://ugamarket-admin.vercel.app',
     FRONTEND_URL: 'https://ugamarket.vercel.app',
     PAYMENT_PROVIDER: 'JJUMA',

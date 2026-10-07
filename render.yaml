@@ -34,19 +34,14 @@ services:
         value: 7d
       - key: ADMIN_JWT_EXPIRES_IN
         value: 1d
-      # First super-admin (used only by the first-start seed)
+      # The one super admin / owner (used only by the first-start seed).
+      # Other staff are added later in the admin console → Staff accounts.
       - key: ADMIN_1_EMAIL
         sync: false
       - key: ADMIN_1_PASSWORD
         sync: false
       - key: ADMIN_1_NAME
         value: Owner
-      - key: ADMIN_2_EMAIL
-        sync: false
-      - key: ADMIN_2_PASSWORD
-        sync: false
-      - key: ADMIN_2_NAME
-        value: Operations
       # Your two Vercel URLs, comma-separated (no trailing slash)
       - key: CORS_ORIGIN
         sync: false

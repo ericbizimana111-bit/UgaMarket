@@ -38,25 +38,7 @@ async function main() {
     },
   });
 
-  const admin2PasswordHash = await bcrypt.hash(env.ADMIN_2_PASSWORD, salt);
-  if (env.ADMIN_2_EMAIL === env.ADMIN_1_EMAIL) throw new Error('ADMIN_2_EMAIL must differ from ADMIN_1_EMAIL (the owner)');
-  await prisma.admin.upsert({
-    where: { email: env.ADMIN_2_EMAIL },
-    update: {
-      fullName: env.ADMIN_2_NAME,
-      passwordHash: admin2PasswordHash,
-      role: 'ADMIN',
-      isActive: true,
-    },
-    create: {
-      fullName: env.ADMIN_2_NAME,
-      email: env.ADMIN_2_EMAIL,
-      passwordHash: admin2PasswordHash,
-      role: 'ADMIN',
-      isActive: true,
-    },
-  });
-  console.log(`✅ Admins seeded: ${env.ADMIN_1_EMAIL}, ${env.ADMIN_2_EMAIL}`);
+  console.log(`✅ Super admin seeded: ${env.ADMIN_1_EMAIL}`);
 
   // 2. Seed Categories
   console.log('📂 Seeding food categories with multilingual translations...');

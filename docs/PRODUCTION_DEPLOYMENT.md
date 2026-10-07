@@ -55,7 +55,7 @@ Required in production (startup **fails fast** otherwise —
 |---|---|
 | `DATABASE_URL` | required; points at the compose `postgres` service |
 | `JWT_SECRET`, `ADMIN_JWT_SECRET` | ≥32 chars, **must differ**, no placeholders |
-| `ADMIN_1_PASSWORD`, `ADMIN_2_PASSWORD` | explicit; placeholder/default values rejected |
+| `ADMIN_1_PASSWORD` | explicit; placeholder/default values rejected |
 | `PAYMENT_WEBHOOK_SECRET` | explicit; ≥32 chars; mock default rejected |
 | `CORS_ORIGIN` | explicit origins; wildcard `*` rejected |
 | `RATE_LIMIT_API_MAX`, `RATE_LIMIT_AUTH_MAX` | optional (defaults 600 / 20 per 15 min). API limit is per signed-in account, per IP for visitors; auth limit counts only login/register/OTP attempts |

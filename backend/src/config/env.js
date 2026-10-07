@@ -20,9 +20,6 @@ const envSchema = z.object({
   ADMIN_1_EMAIL: z.string().email().default('admin@ugandafood.market'),
   ADMIN_1_PASSWORD: z.string().min(8).default('AdminSecurePass123!'),
   ADMIN_1_NAME: z.string().default('Primary Admin'),
-  ADMIN_2_EMAIL: z.string().email().default('operations@ugandafood.market'),
-  ADMIN_2_PASSWORD: z.string().min(8).default('OpsSecurePass123!'),
-  ADMIN_2_NAME: z.string().default('Operations Manager'),
 
   // CORS
   CORS_ORIGIN: z.string().default('http://localhost:3000,http://localhost:5173'),

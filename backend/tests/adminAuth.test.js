@@ -2,12 +2,31 @@ const request = require('supertest');
 const jwt = require('jsonwebtoken');
 const app = require('../src/app');
 const prisma = require('../src/config/db');
+const bcrypt = require('bcryptjs');
 const env = require('../src/config/env');
 const { signCustomerToken, signAdminToken } = require('../src/services/token.service');
 
 describe('Admin Authentication & RBAC Authorization', () => {
   let superAdminToken = null;
   let adminToken = null;
+
+  // The store has a single seeded super admin; regular ADMIN staff are
+  // created by the owner. Create a temporary one to test the ADMIN role.
+  const STAFF_EMAIL = 'staff.admin.test@ugandafood.market';
+  const STAFF_PASSWORD = 'StaffTestPass2026';
+
+  beforeAll(async () => {
+    const passwordHash = await bcrypt.hash(STAFF_PASSWORD, 12);
+    await prisma.admin.upsert({
+      where: { email: STAFF_EMAIL },
+      update: { passwordHash, role: 'ADMIN', isActive: true },
+      create: { fullName: 'Test Staff Admin', email: STAFF_EMAIL, passwordHash, role: 'ADMIN', isActive: true },
+    });
+  });
+
+  afterAll(async () => {
+    await prisma.admin.deleteMany({ where: { email: STAFF_EMAIL } });
+  });
 
   describe('Admin Login', () => {
     test('successfully logs in SUPER_ADMIN with valid credentials', async () => {
@@ -34,8 +53,8 @@ describe('Admin Authentication & RBAC Authorization', () => {
       const res = await request(app)
         .post('/api/admin/auth/login')
         .send({
-          email: env.ADMIN_2_EMAIL,
-          password: env.ADMIN_2_PASSWORD,
+          email: STAFF_EMAIL,
+          password: STAFF_PASSWORD,
         });
 
       expect(res.statusCode).toBe(200);

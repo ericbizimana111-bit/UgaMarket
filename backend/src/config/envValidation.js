@@ -24,10 +24,6 @@ const PRODUCTION_FORBIDDEN_VALUES = {
     'change_this_admin_password_in_env',
     'AdminSecurePass123!', // historical insecure code default
   ],
-  ADMIN_2_PASSWORD: [
-    'change_this_ops_password_in_env',
-    'OpsSecurePass123!', // historical insecure code default
-  ],
 };
 
 // Minimum secret length for cryptographic use in production.
@@ -40,7 +36,6 @@ const PRODUCTION_MIN_SECRET_LENGTH = 32;
 const PRODUCTION_REQUIRED_RAW = [
   'PAYMENT_WEBHOOK_SECRET',
   'ADMIN_1_PASSWORD',
-  'ADMIN_2_PASSWORD',
 ];
 
 const PRODUCTION_SECRET_VARS = ['JWT_SECRET', 'ADMIN_JWT_SECRET', 'PAYMENT_WEBHOOK_SECRET'];
@@ -76,9 +71,9 @@ function validateProductionConfig(config, rawEnv = {}) {
     }
   }
 
-  // 2c. Owner / first admin passwords: same strength as staff passwords
+  // 2c. Owner (super admin) password: same strength as staff passwords
   //     (at least 10 characters with letters and numbers).
-  for (const variable of ['ADMIN_1_PASSWORD', 'ADMIN_2_PASSWORD']) {
+  for (const variable of ['ADMIN_1_PASSWORD']) {
     const value = rawEnv[variable] !== undefined ? String(rawEnv[variable]) : '';
     if (value && !(value.length >= 10 && /[A-Za-z]/.test(value) && /\d/.test(value))) {
       problems.push(`${variable} must be at least 10 characters and contain letters and numbers.`);

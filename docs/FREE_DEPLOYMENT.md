@@ -70,7 +70,6 @@ git add -A && git commit -m "Prepare free deployment" && git push origin main
 | `DATABASE_URL` | from step 1 |
 | `CLOUDINARY_URL` | from step 2 |
 | `ADMIN_1_EMAIL` / `ADMIN_1_PASSWORD` | the **owner** (the only super admin) — password 10+ characters with letters and numbers |
-| `ADMIN_2_EMAIL` / `ADMIN_2_PASSWORD` | a first regular admin (different email, same password rule) |
 | `CORS_ORIGIN` | for now `https://ugamarket.vercel.app,https://ugamarket-admin.vercel.app` (fix in step 6 if Vercel gives other names) |
 | `FRONTEND_URL` | `https://ugamarket.vercel.app` |
 | `JJUMA_PUBLIC_KEY` / `JJUMA_SECRET_KEY` | JJuma dashboard → API Keys (`bp_test_` keys first; needs a verified **business** account) |
