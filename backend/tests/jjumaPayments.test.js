@@ -378,6 +378,84 @@ describe('JJuma Global payments — end to end', () => {
     expect(res.body.event).toBe('IGNORED');
   });
 
+  test('payment.cancelled records CANCELLED (distinct from FAILED); duplicate delivery changes nothing', async () => {
+    const order = await createOrder();
+    const { payment } = await startPayment(order);
+
+    const cancelled = await signedWebhook('payment.cancelled', eventData(payment, { status: 'cancelled' }));
+    expect(cancelled.statusCode).toBe(200);
+    expect((await paymentRow(payment.id)).status).toBe('CANCELLED');
+    expect((await paymentRow(payment.id)).resultCode).toBe('CANCELLED_BY_USER');
+    expect(await orderStatus(order.id)).toBe('PENDING_PAYMENT');
+
+    const again = await signedWebhook('payment.cancelled', eventData(payment, { status: 'cancelled' }));
+    expect(again.statusCode).toBe(200);
+    expect(again.body.event).toBe('IGNORED');
+    expect((await paymentRow(payment.id)).status).toBe('CANCELLED');
+  });
+
+  test('the order page exposes the in-flight attempt with its checkout URL and keeps it PENDING while JJuma says pending', async () => {
+    const order = await createOrder();
+    const { payment } = await startPayment(order);
+
+    const res = await request(app).get(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerToken}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.activePayment).toMatchObject({
+      id: payment.id,
+      status: 'PENDING',
+      providerRef: payment.providerRef,
+      checkoutUrl: `https://pay.jjuma.com/pay/${payment.providerRef}`,
+    });
+    expect(res.body.data.activePayment).not.toHaveProperty('payload');
+    expect(await orderStatus(order.id)).toBe('PENDING_PAYMENT');
+  });
+
+  test('missed failure webhook: reconciliation closes an attempt JJuma reports as failed, and the customer can retry', async () => {
+    const order = await createOrder();
+    const { payment } = await startPayment(order);
+    fakeJjuma.transactions.get(payment.providerRef).status = 'failed';
+
+    const res = await request(app).get(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerToken}`);
+    expect(res.statusCode).toBe(200);
+    expect(res.body.data.activePayment).toBeNull();
+    expect((await paymentRow(payment.id)).status).toBe('FAILED');
+    expect(await orderStatus(order.id)).toBe('PENDING_PAYMENT');
+
+    const { payment: retry } = await startPayment(order);
+    expect(retry.id).not.toBe(payment.id);
+    expect(retry.status).toBe('PENDING');
+  });
+
+  test('a provider rejection at checkout returns a sanitized, machine-readable error', async () => {
+    const order = await createOrder();
+    global.fetch = async () => fakeResponse(403, { success: false, status: 'error', code: 'VERIFICATION_REQUIRED', message: 'internal detail', request_id: 'payreq_x' });
+    try {
+      const pay = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerToken}`).send({ purpose: 'COMMITMENT' });
+      expect(pay.statusCode).toBe(502);
+      expect(pay.body.errors[0].code).toBe('PAYMENT_PROVIDER_REJECTED');
+      expect(pay.body.message).toMatch(/No money was taken/);
+      expect(JSON.stringify(pay.body)).not.toMatch(/internal detail|payreq_x|bp_test_/);
+    } finally {
+      global.fetch = fakeFetch;
+    }
+  });
+
+  test('a JJuma timeout at checkout is reported as PAYMENT_PROVIDER_TIMEOUT', async () => {
+    const order = await createOrder();
+    global.fetch = async () => {
+      const error = new Error('aborted');
+      error.name = 'AbortError';
+      throw error;
+    };
+    try {
+      const pay = await request(app).post(`/api/orders/${order.id}/payment`).set('Authorization', `Bearer ${customerToken}`).send({ purpose: 'COMMITMENT' });
+      expect(pay.statusCode).toBe(502);
+      expect(pay.body.errors[0].code).toBe('PAYMENT_PROVIDER_TIMEOUT');
+    } finally {
+      global.fetch = fakeFetch;
+    }
+  });
+
   test('JJuma being down at checkout fails cleanly with 502 and leaves nothing paid', async () => {
     const order = await createOrder();
     global.fetch = async () => {

@@ -198,7 +198,12 @@ const OrderDetail = () => {
         await fetchOrderDetails();
       }
     } catch (err) {
-      setErrorMessage(friendlyError(err, t, 'paymentFailedMsg'));
+      // The backend tags provider-side failures so they are not shown as a
+      // generic "something went wrong on our side".
+      const code = err?.data?.errors?.[0]?.code;
+      if (code === 'PAYMENT_PROVIDER_REJECTED') setErrorMessage(t('paymentProviderRejected'));
+      else if (code === 'PAYMENT_PROVIDER_TIMEOUT') setErrorMessage(t('paymentProviderTimeout'));
+      else setErrorMessage(friendlyError(err, t, 'paymentFailedMsg'));
     } finally {
       setActionLoading(false);
       setPaymentMethod(null);
@@ -266,6 +271,11 @@ const OrderDetail = () => {
   const commitmentStatus = paymentInfo?.commitmentPaymentStatus || 'UNPAID';
   const balanceStatus = paymentInfo?.balancePaymentStatus || 'UNPAID';
   const balanceBeforeFulfillment = !canPayBalance && !isCancelled && balanceDue !== null && balanceDue > 0;
+  // Most recent attempt (payments are newest first): tell the customer when it
+  // did not go through, so a dead checkout is never mistaken for "in progress".
+  const lastAttempt = paymentHistory[0] || null;
+  const lastAttemptEnded =
+    !activePayment && (canPayCommitment || canPayBalance) && lastAttempt && ['FAILED', 'CANCELLED', 'EXPIRED'].includes(lastAttempt.status);
 
   const stepLabel = (idx) => t(LIFECYCLE_KEYS[idx]);
 
@@ -333,7 +343,21 @@ const OrderDetail = () => {
               purpose: activePayment.purpose === 'BALANCE' ? t('purposeBalance') : t('purposeCommitment'),
               amount: formatUGX(activePayment.amountUgx)
             })}
+            {activePayment.expiresAt && (
+              <> {t('paymentStillWaitingHint', { time: formatDateTime(activePayment.expiresAt) })}</>
+            )}
           </span>
+          {activePayment.checkoutUrl && (
+            <a href={activePayment.checkoutUrl} className="btn btn-secondary btn-sm">
+              {t('paymentContinue')}
+            </a>
+          )}
+        </div>
+      )}
+      {lastAttemptEnded && (
+        <div className="alert alert-error" role="status">
+          <XCircle size={16} aria-hidden="true" />
+          <span>{lastAttempt.status === 'CANCELLED' ? t('paymentLastCancelled') : t('paymentLastNotCompleted')}</span>
         </div>
       )}
 

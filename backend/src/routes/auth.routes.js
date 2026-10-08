@@ -7,6 +7,7 @@ const { authenticateCustomer } = require('../middleware/auth');
 const {
   customerRegisterSchema,
   customerLoginSchema,
+  googleAuthSchema,
   otpRequestSchema,
   otpVerifySchema,
   updateProfileSchema,
@@ -17,6 +18,9 @@ router.post('/register', validateRequest(customerRegisterSchema), authController
 
 // Customer login
 router.post('/login', validateRequest(customerLoginSchema), authController.login);
+
+// "Continue with Google" (sign in, or sign up with a phone number)
+router.post('/google', validateRequest(googleAuthSchema), authController.googleSignIn);
 
 // OTP request and verification endpoints
 router.post('/otp/request', validateRequest(otpRequestSchema), authController.requestOtp);

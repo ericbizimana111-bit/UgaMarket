@@ -1,5 +1,7 @@
+const crypto = require('crypto');
 const bcrypt = require('bcryptjs');
 const prisma = require('../config/db');
+const { verifyGoogleCredential } = require('./googleIdentity.service');
 const { normalizeUgandaPhone } = require('../utils/phone');
 const { signCustomerToken } = require('./token.service');
 const { AppError } = require('../middleware/errorHandler');
@@ -109,6 +111,100 @@ async function loginUser({ phone, password }) {
   };
 }
 
+const SAFE_USER_SELECT = {
+  id: true,
+  fullName: true,
+  phone: true,
+  email: true,
+  isActive: true,
+  createdAt: true,
+  updatedAt: true,
+};
+
+function codedError(message, statusCode, code) {
+  return new AppError(message, statusCode, [{ code, message }]);
+}
+
+/** Display name from the Google profile, falling back to the email's local part. */
+function googleDisplayName(profile) {
+  const name = (profile.name || '').replace(/\s+/g, ' ').trim();
+  const fallback = profile.email ? profile.email.split('@')[0] : '';
+  const chosen = name.length >= 2 ? name : fallback.length >= 2 ? fallback : 'UgaMarket customer';
+  return chosen.slice(0, 150);
+}
+
+/**
+ * "Continue with Google" (sign in or sign up).
+ *
+ *  - Known Google account → signed in.
+ *  - New Google account without `phone` → { needsPhone: true, profile }; no
+ *    account is created yet. The storefront asks for the phone number (needed
+ *    for orders and mobile money) and posts the same credential again.
+ *  - New Google account with `phone` → account created and signed in.
+ *
+ * An existing account is never linked by email: UgaMarket emails are not
+ * verified (customers can type any address), so auto-linking would let
+ * someone pre-register a victim's email and later share their account.
+ */
+async function signInWithGoogle({ credential, phone }) {
+  const profile = await verifyGoogleCredential(credential);
+  if (!profile.email || !profile.emailVerified) {
+    throw codedError('Your Google account email is not verified. Please use another sign-in method.', 401, 'GOOGLE_EMAIL_UNVERIFIED');
+  }
+
+  const linked = await prisma.user.findUnique({ where: { googleId: profile.sub }, select: SAFE_USER_SELECT });
+  if (linked) {
+    if (!linked.isActive) {
+      throw new AppError('This account is inactive. Please contact support.', 401);
+    }
+    return { user: linked, token: signCustomerToken(linked), created: false };
+  }
+
+  const emailOwner = await prisma.user.findUnique({ where: { email: profile.email }, select: { id: true } });
+  if (emailOwner) {
+    throw codedError(
+      'An account with this email already exists. Please sign in with your phone number and password.',
+      409,
+      'GOOGLE_EMAIL_IN_USE'
+    );
+  }
+
+  const fullName = googleDisplayName(profile);
+  if (!phone) {
+    return { needsPhone: true, profile: { fullName, email: profile.email } };
+  }
+
+  const phoneResult = normalizeUgandaPhone(phone);
+  if (!phoneResult.isValid) {
+    throw new AppError(phoneResult.error, 400);
+  }
+  const phoneOwner = await prisma.user.findUnique({ where: { phone: phoneResult.normalized }, select: { id: true } });
+  if (phoneOwner) {
+    throw codedError(
+      'This phone number already has an account. Please sign in with your phone number and password.',
+      409,
+      'PHONE_IN_USE'
+    );
+  }
+
+  // Google-only accounts get an unguessable random password: phone+password
+  // sign-in stays impossible unless the customer later sets one.
+  const passwordHash = await bcrypt.hash(crypto.randomBytes(32).toString('hex'), 12);
+  const user = await prisma.user.create({
+    data: {
+      fullName,
+      phone: phoneResult.normalized,
+      email: profile.email,
+      googleId: profile.sub,
+      passwordHash,
+      cart: { create: {} },
+    },
+    select: SAFE_USER_SELECT,
+  });
+
+  return { user, token: signCustomerToken(user), created: true };
+}
+
 async function getUserById(id) {
   const user = await prisma.user.findUnique({
     where: { id },
@@ -133,5 +229,6 @@ async function getUserById(id) {
 module.exports = {
   registerUser,
   loginUser,
+  signInWithGoogle,
   getUserById,
 };

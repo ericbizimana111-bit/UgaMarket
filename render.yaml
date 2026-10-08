@@ -47,6 +47,11 @@ services:
         sync: false
       - key: FRONTEND_URL
         sync: false
+      # "Continue with Google": OAuth Web client ID (Google Cloud Console →
+      # APIs & Services → Credentials). Same value as the shop's
+      # REACT_APP_GOOGLE_CLIENT_ID. Empty disables Google sign-in.
+      - key: GOOGLE_CLIENT_ID
+        sync: false
       # Payments: JJuma Global hosted checkout (MTN MoMo + Airtel Money)
       - key: PAYMENT_PROVIDER
         value: JJUMA

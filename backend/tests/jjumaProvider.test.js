@@ -159,7 +159,30 @@ describe('JJuma provider — initiatePayment', () => {
   test('provider error body / HTTP error → normalized failure, no throw', async () => {
     stubFetch(403, { success: false, status: 'error', code: 'VERIFICATION_REQUIRED', message: 'Your account must be verified' });
     const result = await jjuma.initiatePayment({ payment: payment() });
-    expect(result).toMatchObject({ ok: false, resultCode: 'PROVIDER_ERROR', httpStatus: 403 });
+    expect(result).toMatchObject({
+      ok: false,
+      resultCode: 'PROVIDER_ERROR',
+      httpStatus: 403,
+      providerCode: 'VERIFICATION_REQUIRED',
+      failureMessage: 'The payment provider has not activated this merchant account yet',
+    });
+  });
+
+  test('a 200 response with success:false keeps the documented error code', async () => {
+    stubFetch(200, { success: false, status: 'error', code: 'INVALID_AMOUNT', message: 'Amount too small' });
+    const result = await jjuma.initiatePayment({ payment: payment() });
+    expect(result).toMatchObject({
+      ok: false,
+      providerCode: 'INVALID_AMOUNT',
+      providerMessage: 'Amount too small',
+      failureMessage: 'The payment provider rejected the payment amount',
+    });
+  });
+
+  test('falls back to checkout_url when payment_url is absent', async () => {
+    stubFetch(200, createResponse({ payment_url: undefined, checkout_url: 'https://pay.jjuma.com/pay/TXN-A1B2C3D4E5F6' }));
+    const result = await jjuma.initiatePayment({ payment: payment() });
+    expect(result).toMatchObject({ ok: true, checkoutUrl: 'https://pay.jjuma.com/pay/TXN-A1B2C3D4E5F6' });
   });
 
   test('unsupported method fails before any network call', async () => {
@@ -210,6 +233,22 @@ describe('JJuma provider — verifyPayment', () => {
     stubFetch(200, { success: true, status: 'success', data: { transaction_id: 'TXN-A1B2C3D4E5F6', status: 'pending' } });
     const result = await jjuma.verifyPayment({ providerRef: 'TXN-A1B2C3D4E5F6' });
     expect(result).toMatchObject({ ok: true, outcome: 'PENDING' });
+  });
+
+  test.each([
+    ['failed', 'DECLINED'],
+    ['cancelled', 'CANCELLED_BY_USER'],
+    ['expired', 'TIMEOUT'],
+  ])('JJuma reporting the transaction %s → FAILED (%s)', async (status, resultCode) => {
+    stubFetch(200, { status: 'success', data: { transaction_id: 'TXN-A1B2C3D4E5F6', status, payment_status: status } });
+    const result = await jjuma.verifyPayment({ providerRef: 'TXN-A1B2C3D4E5F6' });
+    expect(result).toMatchObject({ ok: true, outcome: 'FAILED', resultCode, providerStatus: status });
+  });
+
+  test('disagreeing status fields are not trusted as a failure (stays PENDING)', async () => {
+    stubFetch(200, { status: 'success', data: { transaction_id: 'TXN-A1B2C3D4E5F6', status: 'failed', payment_status: 'pending' } });
+    const result = await jjuma.verifyPayment({ providerRef: 'TXN-A1B2C3D4E5F6' });
+    expect(result).toMatchObject({ ok: true, outcome: 'PENDING', resultCode: 'NONE' });
   });
 
   test('a response for a different transaction is rejected', async () => {

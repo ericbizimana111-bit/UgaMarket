@@ -475,6 +475,12 @@ export default function OrderDetailPage() {
                       <strong>{p.purpose === 'BALANCE' ? 'Balance' : 'Commitment'}</strong>
                       <small>
                         {p.provider} · <span className="mono">{p.transactionRef}</span>
+                        {p.providerRef && (
+                          <>
+                            {' '}· <span className="mono" title="Provider transaction ID">{p.providerRef}</span>
+                          </>
+                        )}
+                        {p.failureMessage && ` · ${p.failureMessage}`}
                       </small>
                     </div>
                     <div className="payment-row__right">

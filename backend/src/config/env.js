@@ -90,6 +90,11 @@ const envSchema = z.object({
   LIBRETRANSLATE_URL: z.string().default(''),
   LIBRETRANSLATE_API_KEY: z.string().default(''),
   MYMEMORY_EMAIL: z.string().default(''),
+
+  // "Continue with Google": the OAuth 2.0 Web client ID (public, not a secret).
+  // Google ID tokens are only accepted when issued for this client. Empty
+  // disables Google sign-in (the endpoint answers 503).
+  GOOGLE_CLIENT_ID: z.string().trim().default(''),
 });
 
 const { validateProductionConfig } = require('./envValidation');

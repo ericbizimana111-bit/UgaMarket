@@ -29,6 +29,27 @@ async function login(req, res, next) {
   }
 }
 
+// POST /api/auth/google — sign in / sign up with a Google ID token
+async function googleSignIn(req, res, next) {
+  try {
+    const result = await authService.signInWithGoogle(req.body);
+    if (result.needsPhone) {
+      return res.json({
+        success: true,
+        message: 'Add your phone number to finish creating your account',
+        data: { needsPhone: true, profile: result.profile },
+      });
+    }
+    res.status(result.created ? 201 : 200).json({
+      success: true,
+      message: result.created ? 'Registration successful' : 'Login successful',
+      data: { user: result.user, token: result.token },
+    });
+  } catch (error) {
+    next(error);
+  }
+}
+
 async function requestOtp(req, res, next) {
   try {
     const result = await otpService.requestOtp(req.body.phone);
@@ -95,6 +116,7 @@ module.exports = {
   updateMe,
   register,
   login,
+  googleSignIn,
   requestOtp,
   verifyOtp,
   getMe,

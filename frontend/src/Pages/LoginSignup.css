@@ -175,6 +175,29 @@
   transform: scale(0.98);
 }
 
+/* Google renders its own button (an iframe) inside this box. */
+.auth__google-gsi {
+  display: flex;
+  justify-content: center;
+  width: 100%;
+  min-height: 44px;
+}
+
+.auth__google-finish {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth__google-finish h2 {
+  margin: 0;
+  font-size: 1.15rem;
+}
+
+.auth__google-finish .auth__lead {
+  margin: 0;
+}
+
 .auth__divider {
   display: flex;
   align-items: center;

@@ -27,6 +27,13 @@ const PROVIDER_METHOD_SUPPORT = {
 // (the order page polls every few seconds while a payment is in flight).
 const RECONCILE_MIN_INTERVAL_MS = 15000;
 const lastReconcileAt = new Map();
+// JJuma's verify API can take longer than the polling interval: never run two
+// checks of the same attempt at once.
+const reconcileInFlight = new Set();
+// How long a page read waits for reconciliation before answering with the
+// current state; a slower check keeps running and the next poll (or the
+// realtime payment notification) shows its result.
+const RECONCILE_WAIT_MS = 4000;
 
 // Provider initiation result fields that may be surfaced to the frontend.
 // Everything else (raw provider payloads, internal notes) stays server-side.
@@ -307,13 +314,20 @@ function buildProviderPaymentInput(attempt, order, { method } = {}, provider = n
 function assertInitiationAccepted(result, attempt) {
   if (!result || result.ok !== true) {
     const detail = (result && result.failureMessage) || 'Payment provider refused the charge request';
+    const resultCode = (result && result.resultCode) || 'PROVIDER_ERROR';
     logger.error(`[payment] initiation failed`, {
       provider: env.PAYMENT_PROVIDER,
       transactionRef: attempt.transactionRef,
-      resultCode: (result && result.resultCode) || 'PROVIDER_ERROR',
+      resultCode,
       httpStatus: (result && result.httpStatus) || null,
+      providerCode: (result && result.providerCode) || null,
+      providerMessage: (result && result.providerMessage) || null,
+      providerRequestId: (result && result.providerRequestId) || null,
     });
-    throw new AppError(`Payment initiation failed: ${detail}`, 502);
+    // `code` lets the storefront tell "provider timed out" from "provider
+    // rejected the request"; the message carries no provider internals.
+    const code = resultCode === 'TIMEOUT' ? 'PAYMENT_PROVIDER_TIMEOUT' : 'PAYMENT_PROVIDER_REJECTED';
+    throw new AppError(`Payment initiation failed: ${detail}. No money was taken.`, 502, [{ code, message: detail }]);
   }
 }
 
@@ -719,14 +733,39 @@ async function reconcileOrderPayments(orderId) {
   });
 
   for (const payment of candidates) {
+    if (reconcileInFlight.has(payment.id)) continue;
     const last = lastReconcileAt.get(payment.id) || 0;
     if (Date.now() - last < RECONCILE_MIN_INTERVAL_MS) continue;
     lastReconcileAt.set(payment.id, Date.now());
     if (lastReconcileAt.size > 5000) lastReconcileAt.clear();
+    reconcileInFlight.add(payment.id);
 
     try {
       const check = await provider.verifyPayment({ providerRef: payment.providerRef });
-      if (!check || check.ok !== true || check.outcome !== 'SUCCESS') continue;
+      if (!check || check.ok !== true) continue;
+      if (check.outcome === 'FAILED' && ['PENDING', 'PROCESSING'].includes(payment.status)) {
+        // The provider itself reports the attempt as failed/cancelled/expired
+        // (its webhook was missed): close it so the customer can retry
+        // instead of waiting for the attempt TTL. Moves no money.
+        await applyProviderEvent(provider, {
+          providerRef: payment.providerRef,
+          orderNumber: payment.transactionRef,
+          amountUgx: null,
+          currency: null,
+          outcome: 'FAILED',
+          purpose: payment.purpose,
+          resultCode: check.resultCode || 'DECLINED',
+          failureMessage: check.failureMessage || 'Payment was not completed',
+          occurredAt: new Date().toISOString(),
+        });
+        logger.info('[payment] attempt closed by reconciliation', {
+          provider: provider.name,
+          paymentId: payment.id,
+          providerStatus: check.providerStatus || null,
+        });
+        continue;
+      }
+      if (check.outcome !== 'SUCCESS') continue;
       // The verify response must itself prove the exact amount/currency.
       if (check.amountUgx !== payment.amountUgx || check.currency !== CURRENCY) {
         logger.warn('[payment] reconciliation skipped: provider amount/currency not confirmed', {
@@ -756,8 +795,21 @@ async function reconcileOrderPayments(orderId) {
         paymentId: payment.id,
         message: error.message,
       });
+    } finally {
+      reconcileInFlight.delete(payment.id);
     }
   }
+}
+
+/** Reconcile, but wait at most RECONCILE_WAIT_MS for it. Never throws. */
+async function reconcileWithinBudget(orderId) {
+  let timer;
+  const work = reconcileOrderPayments(orderId).catch(() => {});
+  const budget = new Promise((resolve) => {
+    timer = setTimeout(resolve, RECONCILE_WAIT_MS);
+  });
+  await Promise.race([work, budget]);
+  clearTimeout(timer);
 }
 
 /**
@@ -859,7 +911,7 @@ async function applyProviderEvent(provider, event) {
       // the order is still payable, otherwise surfaced for staff review;
       // it is never silently dropped.
       const lateConfirmedSuccess =
-        event.outcome === 'SUCCESS' && event.apiConfirmed === true && ['FAILED', 'EXPIRED'].includes(payment.status);
+        event.outcome === 'SUCCESS' && event.apiConfirmed === true && ['FAILED', 'CANCELLED', 'EXPIRED'].includes(payment.status);
       if (!['PENDING', 'PROCESSING'].includes(payment.status) && !lateConfirmedSuccess) {
         // FAILED / CANCELLED / EXPIRED attempts cannot be resurrected by an
         // unconfirmed webhook
@@ -924,13 +976,14 @@ async function applyProviderEvent(provider, event) {
         return { payment: fresh, order: fresh.order, duplicate: true };
       }
 
-      // 7. FAILURE outcome: record it; order remains unpaid for this payment
+      // 7. FAILURE outcome: record it; order remains unpaid for this payment.
+      // A customer cancellation is kept distinct from a declined/failed charge.
       if (event.outcome !== 'SUCCESS') {
         const failed = await tx.payment.update({
           where: { id: payment.id },
           data: {
             providerRef: payment.providerRef || event.providerRef,
-            status: 'FAILED',
+            status: event.resultCode === 'CANCELLED_BY_USER' ? 'CANCELLED' : 'FAILED',
             resultCode: event.resultCode || 'PROVIDER_ERROR',
             failureMessage: event.failureMessage || 'Payment failed',
           },
@@ -1172,7 +1225,7 @@ async function getCustomerOrderPayment(userId, orderId) {
     throw new AppError('Order not found', 404);
   }
 
-  await reconcileOrderPayments(owned.id);
+  await reconcileWithinBudget(owned.id);
   // Read the order AFTER reconciliation so a just-settled payment is reflected.
   const order = await prisma.order.findUnique({ where: { id: owned.id } });
 
@@ -1206,7 +1259,12 @@ async function getCustomerOrderPayment(userId, orderId) {
     isFullyPaid: balance.isFullyPaid,
     isCompleted: order.status === 'COMPLETED',
     payments: payments.map(formatPayment),
-    activePayment: payments.find((p) => ['PENDING', 'PROCESSING'].includes(p.status)) || null,
+    // Safe projection (includes checkoutUrl so the customer can reopen the
+    // hosted page); raw payloads never leave the server.
+    activePayment: (() => {
+      const active = payments.find((p) => ['PENDING', 'PROCESSING'].includes(p.status));
+      return active ? formatPayment(active) : null;
+    })(),
   };
 }
 
@@ -1216,7 +1274,7 @@ async function getCustomerOrderPayment(userId, orderId) {
 async function getAdminOrderPayment(orderId) {
   const exists = await prisma.order.findUnique({ where: { id: orderId }, select: { id: true } });
   if (exists) {
-    await reconcileOrderPayments(exists.id);
+    await reconcileWithinBudget(exists.id);
   }
   const order = await prisma.order.findUnique({
     where: { id: orderId },

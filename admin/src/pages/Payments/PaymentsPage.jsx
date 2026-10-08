@@ -228,6 +228,7 @@ export default function PaymentsPage() {
                       <th scope="col">Purpose</th>
                       <th scope="col">Reference</th>
                       <th scope="col">Provider</th>
+                      <th scope="col">Provider txn</th>
                       <th scope="col">Amount</th>
                       <th scope="col">Status</th>
                       <th scope="col">Created</th>
@@ -241,6 +242,7 @@ export default function PaymentsPage() {
                           <td data-label="Purpose">{p.purpose === 'BALANCE' ? 'Balance' : 'Commitment'}</td>
                           <td data-label="Reference" className="mono">{p.transactionRef}</td>
                           <td data-label="Provider">{p.provider}</td>
+                          <td data-label="Provider txn" className="mono">{p.providerRef || '—'}</td>
                           <td data-label="Amount">{formatUGX(p.amountUgx)}</td>
                           <td data-label="Status">
                             <span className={`badge ${TONE_CLASS[meta.tone]}`}>{meta.label}</span>

@@ -55,7 +55,13 @@ const env = require('../../config/env');
 
 const API_PREFIX = '/api/v1';
 const CHECKOUT_HOST = 'pay.jjuma.com';
-const REQUEST_TIMEOUT_MS = 15000;
+// Measured against api.jjuma.com (Oct 2026): create answers in ~1 s, but
+// GET /payments/verify routinely takes 20-50 s. A shorter verify timeout makes
+// every webhook confirmation and reconciliation check fail, so a paid order
+// would never be marked paid. Create stays short: it runs inside the order
+// lock (see PROVIDER_CALL_TX_OPTIONS in payment.service).
+const CREATE_TIMEOUT_MS = 20000;
+const VERIFY_TIMEOUT_MS = 60000;
 // Official Node.js guide rejects webhook timestamps older/newer than 5 min.
 const WEBHOOK_TOLERANCE_MS = 5 * 60 * 1000;
 const SUPPORTED_METHODS = new Set(['MTN_MOBILE_MONEY', 'AIRTEL_MONEY']);
@@ -65,6 +71,29 @@ const OUTCOME_BY_EVENT = {
   'payment.completed': { outcome: 'SUCCESS', resultCode: 'SUCCESS', failureMessage: null },
   'payment.failed': { outcome: 'FAILED', resultCode: 'DECLINED', failureMessage: 'Payment was not completed at JJuma' },
   'payment.cancelled': { outcome: 'FAILED', resultCode: 'CANCELLED_BY_USER', failureMessage: 'Payment was cancelled at JJuma' },
+};
+
+// Terminal transaction states reported by the verify API (data.status /
+// data.payment_status, the same values the hosted page and the webhook
+// payloads use). Anything else (pending, processing, …) stays PENDING.
+const OUTCOME_BY_VERIFY_STATUS = {
+  failed: OUTCOME_BY_EVENT['payment.failed'],
+  cancelled: OUTCOME_BY_EVENT['payment.cancelled'],
+  canceled: OUTCOME_BY_EVENT['payment.cancelled'],
+  expired: { outcome: 'FAILED', resultCode: 'TIMEOUT', failureMessage: 'Payment expired at JJuma' },
+};
+
+// Documented JJuma error codes → customer-safe explanations. The raw provider
+// message is logged server-side only.
+const CREATE_ERROR_MESSAGES = {
+  VERIFICATION_REQUIRED: 'The payment provider has not activated this merchant account yet',
+  AUTH_REQUIRED: 'The payment provider rejected the merchant credentials',
+  INVALID_API_KEY: 'The payment provider rejected the merchant credentials',
+  PROVIDER_UNAVAILABLE: 'The payment provider is temporarily unavailable',
+  INVALID_AMOUNT: 'The payment provider rejected the payment amount',
+  INVALID_CURRENCY: 'The payment provider does not accept this currency',
+  INVALID_EMAIL: 'The payment provider rejected the customer email address',
+  INVALID_URL: 'The payment provider rejected the return address',
 };
 
 // ──────────────────────────────────────────────────────────────────────────
@@ -86,10 +115,10 @@ function providerError(message, extra = {}) {
  * Thin isolated HTTPS JSON client (no SDK dependency; TLS verification stays
  * enabled). Keys are only ever placed in the Authorization header.
  */
-async function jjumaRequest(method, path, { accessKey, body } = {}) {
+async function jjumaRequest(method, path, { accessKey, body, timeoutMs = CREATE_TIMEOUT_MS } = {}) {
   const url = `${apiBaseUrl()}${API_PREFIX}${path}`;
   const controller = new AbortController();
-  const timeout = setTimeout(() => controller.abort(), REQUEST_TIMEOUT_MS);
+  const timeout = setTimeout(() => controller.abort(), timeoutMs);
   try {
     const response = await fetch(url, {
       method,
@@ -112,7 +141,7 @@ async function jjumaRequest(method, path, { accessKey, body } = {}) {
     if (!response.ok) {
       throw providerError(`JJuma API error (HTTP ${response.status})`, {
         httpStatus: response.status,
-        providerCode: parsed && typeof parsed.code === 'string' ? parsed.code.slice(0, 60) : null,
+        ...providerErrorDetails(parsed),
       });
     }
     return parsed;
@@ -125,6 +154,20 @@ async function jjumaRequest(method, path, { accessKey, body } = {}) {
   } finally {
     clearTimeout(timeout);
   }
+}
+
+/**
+ * Documented error body: { success:false, status:"error", message, code,
+ * request_id }. Only short, printable excerpts are kept, for server logs.
+ */
+function providerErrorDetails(parsed) {
+  const clip = (value, max) =>
+    typeof value === 'string' && value.trim() ? value.replace(/[^\x20-\x7E]/g, ' ').trim().slice(0, max) : null;
+  return {
+    providerCode: parsed ? clip(parsed.code, 60) : null,
+    providerMessage: parsed ? clip(parsed.message, 200) : null,
+    providerRequestId: parsed ? clip(parsed.request_id, 80) : null,
+  };
 }
 
 /** Wrap provider/network failures into a normalized { ok:false, … } result. */
@@ -141,13 +184,18 @@ function toFailureResult(error) {
       httpStatus: 404,
     };
   }
+  const providerCode = (error && error.providerCode) || null;
   return {
     ok: false,
     outcome: 'FAILED',
     resultCode: 'PROVIDER_ERROR',
-    failureMessage: error && error.httpStatus ? 'Payment provider error' : 'Payment provider unavailable',
+    failureMessage:
+      (providerCode && CREATE_ERROR_MESSAGES[providerCode]) ||
+      (error && error.httpStatus ? 'Payment provider error' : 'Payment provider unavailable'),
     httpStatus: (error && error.httpStatus) || null,
-    providerCode: (error && error.providerCode) || null,
+    providerCode,
+    providerMessage: (error && error.providerMessage) || null,
+    providerRequestId: (error && error.providerRequestId) || null,
   };
 }
 
@@ -275,14 +323,18 @@ module.exports = {
 
     const data = response && typeof response.data === 'object' && response.data ? response.data : null;
     if (!response || response.success !== true || !data || !data.transaction_id) {
+      const details = providerErrorDetails(response);
       return {
         ok: false,
         outcome: 'FAILED',
         resultCode: 'PROVIDER_ERROR',
-        failureMessage: 'Payment provider rejected the payment request',
+        failureMessage: (details.providerCode && CREATE_ERROR_MESSAGES[details.providerCode]) || 'Payment provider rejected the payment request',
+        ...details,
       };
     }
-    if (!isTrustedCheckoutUrl(data.payment_url)) {
+    // payment_url is documented; current responses also echo checkout_url.
+    const checkoutUrl = data.payment_url || data.checkout_url;
+    if (!isTrustedCheckoutUrl(checkoutUrl)) {
       // Official guidance: validate checkout redirect domains.
       return {
         ok: false,
@@ -304,7 +356,7 @@ module.exports = {
     return {
       ok: true,
       providerRef: String(data.transaction_id),
-      checkoutUrl: String(data.payment_url),
+      checkoutUrl: String(checkoutUrl),
       outcome: 'PENDING',
       resultCode: 'NONE',
     };
@@ -313,11 +365,12 @@ module.exports = {
   /**
    * Ask JJuma (secret key) for the authoritative state of a transaction.
    *
-   * Returns { ok:true, providerRef, outcome, amountUgx|null, currency|null }
-   * where outcome is 'SUCCESS' only for the documented paid shape. Any other
-   * state is reported as 'PENDING' (the docs only define "successful"), so a
-   * verify call can confirm a success but never invents a failure — failures
-   * arrive through signed webhooks or attempt expiry.
+   * Returns { ok:true, providerRef, outcome, amountUgx|null, currency|null,
+   * providerStatus } where outcome is 'SUCCESS' only for the documented paid
+   * shape, 'FAILED' when JJuma itself reports the transaction as failed /
+   * cancelled / expired, and 'PENDING' for everything else. A verify call can
+   * therefore close a dead attempt (so the customer is not left waiting when
+   * the dashboard webhook is missed) but never invents a success.
    */
   async verifyPayment({ providerRef } = {}) {
     if (!env.JJUMA_SECRET_KEY) {
@@ -341,6 +394,7 @@ module.exports = {
     try {
       response = await jjumaRequest('GET', `/payments/verify/${encodeURIComponent(String(providerRef))}`, {
         accessKey: env.JJUMA_SECRET_KEY,
+        timeoutMs: VERIFY_TIMEOUT_MS,
       });
     } catch (error) {
       return toFailureResult(error);
@@ -364,15 +418,21 @@ module.exports = {
       };
     }
 
-    const paid = response.status === 'success' && String(data.status || '').toLowerCase() === 'successful';
+    const status = String(data.status || '').toLowerCase();
+    const paid = response.status === 'success' && status === 'successful';
+    // Only trust a terminal failure when both status fields agree (when the
+    // second one is present), so a half-updated record is never closed early.
+    const paymentStatus = data.payment_status ? String(data.payment_status).toLowerCase() : status;
+    const terminal = !paid && response.status === 'success' && paymentStatus === status ? OUTCOME_BY_VERIFY_STATUS[status] : null;
     return {
       ok: true,
       providerRef: String(providerRef),
-      outcome: paid ? 'SUCCESS' : 'PENDING',
-      resultCode: paid ? 'SUCCESS' : 'NONE',
-      failureMessage: null,
+      outcome: paid ? 'SUCCESS' : terminal ? terminal.outcome : 'PENDING',
+      resultCode: paid ? 'SUCCESS' : terminal ? terminal.resultCode : 'NONE',
+      failureMessage: terminal ? terminal.failureMessage : null,
       amountUgx: toIntegerAmount(data.amount),
       currency: data.currency ? String(data.currency).toUpperCase() : null,
+      providerStatus: status.slice(0, 40) || null,
     };
   },
 

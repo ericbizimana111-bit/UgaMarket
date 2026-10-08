@@ -103,6 +103,29 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
+  /**
+   * "Continue with Google". Resolves to { success:true } when signed in, or
+   * { needsPhone:true, profile } when a new account still needs a phone
+   * number (call again with the same credential and the phone).
+   */
+  const googleSignIn = async (credential, phone) => {
+    setAuthError(null);
+    try {
+      const res = await apiClient.post('/auth/google', { credential, ...(phone ? { phone } : {}) });
+      if (res?.data?.needsPhone) {
+        return { success: false, needsPhone: true, profile: res.data.profile };
+      }
+      const authToken = res?.data?.token;
+      const authUser = res?.data?.user;
+      if (authToken) {
+        applySession(authToken, authUser);
+      }
+      return { success: true, user: authUser };
+    } catch (err) {
+      return { success: false, error: err.message, status: err.status, code: err.data?.errors?.[0]?.code };
+    }
+  };
+
   const logout = () => {
     applySession(null, null);
     clearAuthToken();
@@ -125,6 +148,7 @@ export const AuthProvider = ({ children }) => {
         authError,
         login,
         register,
+        googleSignIn,
         logout,
         refreshUser,
         setAuthError,

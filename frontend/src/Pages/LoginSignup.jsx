@@ -6,6 +6,7 @@ import { useLanguage } from '../Context/LanguageContext';
 import { useToast } from '../Components/Toast/Toast';
 import SlidingTabs from '../Components/ui/SlidingTabs';
 import LanguageSwitcher from '../Components/LanguageSwitcher/LanguageSwitcher';
+import GoogleSignInButton from '../Components/GoogleSignInButton/GoogleSignInButton';
 import {
   LIMITS,
   normalizeUgandaPhone,
@@ -40,6 +41,21 @@ const authErrorMessage = (result, isLogin, t) => {
   return error || t('errRegisterFailed');
 };
 
+/** Customer-language message for a failed "Continue with Google" call. */
+const googleErrorMessage = (result, t) => {
+  if (result.status === 0) return t('errNetwork');
+  if (result.status === 429) return t('errTooMany');
+  if (result.code === 'PHONE_IN_USE') return t('errPhoneInUse');
+  if (result.code === 'GOOGLE_EMAIL_IN_USE') return t('errGoogleEmailInUse');
+  if (result.code === 'GOOGLE_EMAIL_UNVERIFIED') return t('errGoogleUnverified');
+  if (result.status === 503) return t('errGoogleUnavailable');
+  if (result.status === 400) return result.error || t('errGoogleFailed');
+  return t('errGoogleFailed');
+};
+
+// Google's button supports these UI languages; others fall back to English.
+const GOOGLE_LOCALES = { en: 'en', fr: 'fr', sw: 'sw' };
+
 const GoogleMark = () => (
   <svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true">
     <path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9.1 3.6l6.8-6.8C35.8 2.4 30.3 0 24 0 14.6 0 6.5 5.4 2.6 13.2l7.9 6.1C12.4 13.5 17.7 9.5 24 9.5z" />
@@ -72,8 +88,8 @@ const Field = ({ id, label, required, hint, error, children }) => (
 );
 
 const LoginSignup = () => {
-  const { login, register, isAuthenticated } = useAuth();
-  const { t } = useLanguage();
+  const { login, register, googleSignIn, isAuthenticated } = useAuth();
+  const { t, currentLang } = useLanguage();
   const { showToast } = useToast();
   const navigate = useNavigate();
   const location = useLocation();
@@ -91,6 +107,10 @@ const LoginSignup = () => {
   const [failures, setFailures] = useState(0);
   const [lockedUntil, setLockedUntil] = useState(0);
   const [now, setNow] = useState(() => Date.now());
+  // New Google user who still needs to add a phone number: { credential, profile }
+  const [googlePending, setGooglePending] = useState(null);
+  const [googlePhone, setGooglePhone] = useState('');
+  const [googlePhoneTouched, setGooglePhoneTouched] = useState(false);
 
   // Countdown while locked out after repeated failed sign-ins.
   useEffect(() => {
@@ -120,6 +140,7 @@ const LoginSignup = () => {
     setTouched({});
     setFormError('');
     setShowPassword(false);
+    setGooglePending(null);
   };
 
   const setField = (field, sanitizer) => (e) => {
@@ -182,9 +203,54 @@ const LoginSignup = () => {
     setValues((prev) => ({ ...prev, password: '' }));
   };
 
-  const handleGoogle = () => {
-    // Google sign-up is wired up here once the OAuth client is configured.
+  // Shown only when Google sign-in is not configured for this build.
+  const handleGoogleUnavailable = () => {
     showToast(t('googleSoon'), { type: 'info', duration: 5000 });
+  };
+
+  const handleGoogleCredential = async (credential) => {
+    if (submitting) return;
+    setFormError('');
+    setSubmitting(true);
+    const result = await googleSignIn(credential);
+    setSubmitting(false);
+    if (result.success) {
+      navigate(redirectUrl, { replace: true });
+    } else if (result.needsPhone) {
+      setGooglePending({ credential, profile: result.profile });
+      setGooglePhone('');
+      setGooglePhoneTouched(false);
+    } else {
+      setFormError(googleErrorMessage(result, t));
+    }
+  };
+
+  const googlePhoneError = validatePhone(googlePhone);
+
+  const handleGoogleFinish = async (e) => {
+    e.preventDefault();
+    if (submitting || !googlePending) return;
+    if (googlePhoneError) {
+      setGooglePhoneTouched(true);
+      document.getElementById('google-phone')?.focus();
+      return;
+    }
+    setFormError('');
+    setSubmitting(true);
+    const result = await googleSignIn(googlePending.credential, normalizeUgandaPhone(googlePhone));
+    setSubmitting(false);
+    if (result.success) {
+      navigate(redirectUrl, { replace: true });
+      return;
+    }
+    setFormError(googleErrorMessage(result, t));
+    // An expired/invalid Google token cannot be reused: start over.
+    if (result.status === 401) setGooglePending(null);
+  };
+
+  const cancelGoogle = () => {
+    setGooglePending(null);
+    setFormError('');
   };
 
   const perks = [
@@ -239,127 +305,173 @@ const LoginSignup = () => {
               </div>
             )}
 
-            {!isLogin && (
-              <>
-                <button type="button" className="auth__google" onClick={handleGoogle}>
-                  <GoogleMark />
-                  {t('continueWithGoogle')}
+            {googlePending ? (
+              <form onSubmit={handleGoogleFinish} noValidate className="auth__google-finish">
+                <h2>{t('googleFinishTitle', { name: googlePending.profile?.fullName || '' })}</h2>
+                <p className="auth__lead">{t('googleFinishDesc')}</p>
+                {googlePending.profile?.email && <p className="input-hint">{googlePending.profile.email}</p>}
+                <Field
+                  id="google-phone"
+                  label={t('phoneLabel')}
+                  required
+                  hint={t('phoneHint')}
+                  error={googlePhoneTouched && googlePhoneError ? t(googlePhoneError) : null}
+                >
+                  <input
+                    id="google-phone"
+                    type="tel"
+                    inputMode="tel"
+                    className="form-input"
+                    placeholder={t('phonePlaceholder')}
+                    value={googlePhone}
+                    onChange={(e) => {
+                      setGooglePhone(sanitizePhone(e.target.value));
+                      if (formError) setFormError('');
+                    }}
+                    onBlur={() => setGooglePhoneTouched(true)}
+                    maxLength={LIMITS.phoneIntl}
+                    autoComplete="tel"
+                    autoFocus
+                    aria-invalid={Boolean(googlePhoneTouched && googlePhoneError)}
+                    aria-describedby={googlePhoneTouched && googlePhoneError ? 'google-phone-err' : 'google-phone-hint'}
+                    disabled={submitting}
+                  />
+                </Field>
+                <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={submitting}>
+                  {submitting ? t('processing2') : t('googleFinishButton')}
                 </button>
-                <div className="auth__divider">
-                  <span>{t('orDivider')}</span>
-                </div>
+                <button type="button" className="btn btn-secondary btn-block" onClick={cancelGoogle} disabled={submitting}>
+                  {t('googleUseAnother')}
+                </button>
+              </form>
+            ) : (
+              <>
+              <GoogleSignInButton
+                onCredential={handleGoogleCredential}
+                locale={GOOGLE_LOCALES[currentLang] || 'en'}
+                disabled={submitting || locked}
+                fallback={
+                  <button type="button" className="auth__google" onClick={handleGoogleUnavailable}>
+                    <GoogleMark />
+                    {t('continueWithGoogle')}
+                  </button>
+                }
+              />
+              <div className="auth__divider">
+                <span>{t('orDivider')}</span>
+              </div>
+
+              <form onSubmit={handleSubmit} noValidate autoComplete="on">
+                {!isLogin && (
+                  <Field id="auth-fullName" label={t('fullName')} required error={visibleError('fullName')}>
+                    <input
+                      id="auth-fullName"
+                      type="text"
+                      className="form-input"
+                      placeholder={t('fullNamePlaceholder')}
+                      value={values.fullName}
+                      onChange={setField('fullName', sanitizeName)}
+                      onBlur={markTouched('fullName')}
+                      maxLength={LIMITS.fullName}
+                      autoComplete="name"
+                      autoCapitalize="words"
+                      spellCheck="false"
+                      aria-invalid={Boolean(visibleError('fullName'))}
+                      aria-describedby={visibleError('fullName') ? 'auth-fullName-err' : undefined}
+                      disabled={submitting}
+                    />
+                  </Field>
+                )}
+
+                <Field id="auth-phone" label={t('phoneLabel')} required hint={t('phoneHint')} error={visibleError('phone')}>
+                  <input
+                    id="auth-phone"
+                    type="tel"
+                    inputMode="tel"
+                    className="form-input"
+                    placeholder={t('phonePlaceholder')}
+                    value={values.phone}
+                    onChange={setField('phone', sanitizePhone)}
+                    onBlur={markTouched('phone')}
+                    maxLength={LIMITS.phoneIntl}
+                    autoComplete="username tel"
+                    autoCapitalize="off"
+                    spellCheck="false"
+                    aria-invalid={Boolean(visibleError('phone'))}
+                    aria-describedby={visibleError('phone') ? 'auth-phone-err' : 'auth-phone-hint'}
+                    disabled={submitting}
+                  />
+                </Field>
+
+                {!isLogin && (
+                  <Field id="auth-email" label={`${t('emailLabel')} (${t('optional')})`} error={visibleError('email')}>
+                    <input
+                      id="auth-email"
+                      type="email"
+                      inputMode="email"
+                      className="form-input"
+                      placeholder={t('emailPlaceholder')}
+                      value={values.email}
+                      onChange={setField('email', sanitizeEmail)}
+                      onBlur={markTouched('email')}
+                      maxLength={LIMITS.email}
+                      autoComplete="email"
+                      autoCapitalize="off"
+                      spellCheck="false"
+                      aria-invalid={Boolean(visibleError('email'))}
+                      aria-describedby={visibleError('email') ? 'auth-email-err' : undefined}
+                      disabled={submitting}
+                    />
+                  </Field>
+                )}
+
+                <Field id="auth-password" label={t('passwordLabel')} required hint={isLogin ? undefined : t('passwordRules')} error={visibleError('password')}>
+                  <div className="pw">
+                    <input
+                      id="auth-password"
+                      type={showPassword ? 'text' : 'password'}
+                      className="form-input"
+                      placeholder={isLogin ? t('passwordPlaceholder') : t('passwordNewPlaceholder')}
+                      value={values.password}
+                      onChange={setField('password', (v) => sanitizePassword(v, isLogin ? LIMITS.passwordLogin : LIMITS.passwordSignup))}
+                      onBlur={markTouched('password')}
+                      maxLength={isLogin ? LIMITS.passwordLogin : LIMITS.passwordSignup}
+                      autoComplete={isLogin ? 'current-password' : 'new-password'}
+                      autoCapitalize="off"
+                      spellCheck="false"
+                      aria-invalid={Boolean(visibleError('password'))}
+                      aria-describedby={visibleError('password') ? 'auth-password-err' : !isLogin ? 'auth-password-hint' : undefined}
+                      disabled={submitting}
+                    />
+                    <button
+                      type="button"
+                      className="pw__toggle"
+                      onClick={() => setShowPassword((s) => !s)}
+                      aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                      aria-pressed={showPassword}
+                    >
+                      {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
+                    </button>
+                  </div>
+
+                  {!isLogin && values.password && (
+                    <div className="strength" role="status" aria-label={`${t('strengthLabel')}: ${strengthLabel}`}>
+                      <span className="strength__bars" aria-hidden="true">
+                        {[1, 2, 3, 4].map((n) => (
+                          <i key={n} className={n <= strength ? `strength__bar strength__bar--${strength}` : 'strength__bar'} />
+                        ))}
+                      </span>
+                      <span className={`strength__text strength__text--${strength}`}>{strengthLabel}</span>
+                    </div>
+                  )}
+                </Field>
+
+                <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={submitting || locked}>
+                  {submitting ? t('processing2') : isLogin ? t('loginButton') : t('signupButton')}
+                </button>
+              </form>
               </>
             )}
-
-            <form onSubmit={handleSubmit} noValidate autoComplete="on">
-              {!isLogin && (
-                <Field id="auth-fullName" label={t('fullName')} required error={visibleError('fullName')}>
-                  <input
-                    id="auth-fullName"
-                    type="text"
-                    className="form-input"
-                    placeholder={t('fullNamePlaceholder')}
-                    value={values.fullName}
-                    onChange={setField('fullName', sanitizeName)}
-                    onBlur={markTouched('fullName')}
-                    maxLength={LIMITS.fullName}
-                    autoComplete="name"
-                    autoCapitalize="words"
-                    spellCheck="false"
-                    aria-invalid={Boolean(visibleError('fullName'))}
-                    aria-describedby={visibleError('fullName') ? 'auth-fullName-err' : undefined}
-                    disabled={submitting}
-                  />
-                </Field>
-              )}
-
-              <Field id="auth-phone" label={t('phoneLabel')} required hint={t('phoneHint')} error={visibleError('phone')}>
-                <input
-                  id="auth-phone"
-                  type="tel"
-                  inputMode="tel"
-                  className="form-input"
-                  placeholder={t('phonePlaceholder')}
-                  value={values.phone}
-                  onChange={setField('phone', sanitizePhone)}
-                  onBlur={markTouched('phone')}
-                  maxLength={LIMITS.phoneIntl}
-                  autoComplete="username tel"
-                  autoCapitalize="off"
-                  spellCheck="false"
-                  aria-invalid={Boolean(visibleError('phone'))}
-                  aria-describedby={visibleError('phone') ? 'auth-phone-err' : 'auth-phone-hint'}
-                  disabled={submitting}
-                />
-              </Field>
-
-              {!isLogin && (
-                <Field id="auth-email" label={`${t('emailLabel')} (${t('optional')})`} error={visibleError('email')}>
-                  <input
-                    id="auth-email"
-                    type="email"
-                    inputMode="email"
-                    className="form-input"
-                    placeholder={t('emailPlaceholder')}
-                    value={values.email}
-                    onChange={setField('email', sanitizeEmail)}
-                    onBlur={markTouched('email')}
-                    maxLength={LIMITS.email}
-                    autoComplete="email"
-                    autoCapitalize="off"
-                    spellCheck="false"
-                    aria-invalid={Boolean(visibleError('email'))}
-                    aria-describedby={visibleError('email') ? 'auth-email-err' : undefined}
-                    disabled={submitting}
-                  />
-                </Field>
-              )}
-
-              <Field id="auth-password" label={t('passwordLabel')} required hint={isLogin ? undefined : t('passwordRules')} error={visibleError('password')}>
-                <div className="pw">
-                  <input
-                    id="auth-password"
-                    type={showPassword ? 'text' : 'password'}
-                    className="form-input"
-                    placeholder={isLogin ? t('passwordPlaceholder') : t('passwordNewPlaceholder')}
-                    value={values.password}
-                    onChange={setField('password', (v) => sanitizePassword(v, isLogin ? LIMITS.passwordLogin : LIMITS.passwordSignup))}
-                    onBlur={markTouched('password')}
-                    maxLength={isLogin ? LIMITS.passwordLogin : LIMITS.passwordSignup}
-                    autoComplete={isLogin ? 'current-password' : 'new-password'}
-                    autoCapitalize="off"
-                    spellCheck="false"
-                    aria-invalid={Boolean(visibleError('password'))}
-                    aria-describedby={visibleError('password') ? 'auth-password-err' : !isLogin ? 'auth-password-hint' : undefined}
-                    disabled={submitting}
-                  />
-                  <button
-                    type="button"
-                    className="pw__toggle"
-                    onClick={() => setShowPassword((s) => !s)}
-                    aria-label={showPassword ? t('hidePassword') : t('showPassword')}
-                    aria-pressed={showPassword}
-                  >
-                    {showPassword ? <EyeOff size={18} aria-hidden="true" /> : <Eye size={18} aria-hidden="true" />}
-                  </button>
-                </div>
-
-                {!isLogin && values.password && (
-                  <div className="strength" role="status" aria-label={`${t('strengthLabel')}: ${strengthLabel}`}>
-                    <span className="strength__bars" aria-hidden="true">
-                      {[1, 2, 3, 4].map((n) => (
-                        <i key={n} className={n <= strength ? `strength__bar strength__bar--${strength}` : 'strength__bar'} />
-                      ))}
-                    </span>
-                    <span className={`strength__text strength__text--${strength}`}>{strengthLabel}</span>
-                  </div>
-                )}
-              </Field>
-
-              <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={submitting || locked}>
-                {submitting ? t('processing2') : isLogin ? t('loginButton') : t('signupButton')}
-              </button>
-            </form>
           </div>
 
           <p className="auth__switch">

@@ -224,6 +224,12 @@ Adapter: `src/services/paymentProviders/jjumaProvider.js` · `PAYMENT_PROVIDER=J
 | Late success | An API-confirmed success for an attempt that already EXPIRED/FAILED is applied if the order is still payable; otherwise it is never applied twice — it raises a **"Payment needs review"** admin notification + `PAYMENT_RECEIVED_NEEDS_REVIEW` audit so staff can refund. |
 | Failures | `payment.failed` / `payment.cancelled` mark the attempt FAILED (amount optional in the payload); the order stays unpaid and the customer can retry. |
 
+| Failures (missed webhook) | When the verify API itself reports `failed` / `cancelled` / `expired` (both `status` and `payment_status` agree), reconciliation closes the attempt (`FAILED`, or `CANCELLED` for a customer cancellation) so the customer can retry immediately. Verify never invents a success. |
+| Timeouts | Create: 20 s. Verify: 60 s — `api.jjuma.com` verify was measured at 20–50 s (Oct 2026). Order-page reads wait at most 4 s for reconciliation; slower checks finish in the background. |
+| Initiation errors | 502 with `errors[0].code` = `PAYMENT_PROVIDER_REJECTED` or `PAYMENT_PROVIDER_TIMEOUT` and a customer-safe message; JJuma's `code` / `message` / `request_id` are logged server-side only. |
+
+**Test mode caveat (verified Oct 2026):** a `bp_test_` key does *not* isolate the hosted checkout from real money. For test transactions JJuma's pay page still loads Flutterwave with a **live** public key (`FLWPUBK-…`, not `FLWPUBK_TEST-…`); the verify response's `flutterwave_checkout` block shows this. Flutterwave's test credentials (any number + OTP `123456`) only work with Flutterwave test keys. Until JJuma switches its Flutterwave gateway to test mode (or enables "Jjuma Pay Simulation") for test-key transactions, a test checkout that succeeds moves real money.
+
 Environment: `JJUMA_API_BASE_URL`, `JJUMA_PUBLIC_KEY`, `JJUMA_SECRET_KEY`, `JJUMA_WEBHOOK_SECRET`, `PAYMENT_MODE` (`TEST` ⇔ `bp_test_` keys, `LIVE` ⇔ `bp_live_` keys), `FRONTEND_URL`. Production refuses to start when any is missing, a placeholder, or mismatched.
 
 Tests: `tests/jjumaProvider.test.js` (adapter), `tests/jjumaPayments.test.js` (end-to-end with a fake JJuma API), `tests/configValidation.test.js` (production config).

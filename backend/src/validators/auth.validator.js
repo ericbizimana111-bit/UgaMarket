@@ -64,6 +64,19 @@ const customerLoginSchema = {
   }),
 };
 
+// POST /api/auth/google — `credential` is the Google ID token from Google
+// Identity Services; `phone` is only sent when completing a new account.
+const googleAuthSchema = {
+  body: z.object({
+    credential: z
+      .string({ required_error: 'Google credential is required' })
+      .trim()
+      .min(20, 'Invalid Google credential')
+      .max(4096, 'Invalid Google credential'),
+    phone: ugandaPhoneSchema.optional(),
+  }),
+};
+
 const adminLoginSchema = {
   body: z.object({
     email: z
@@ -96,6 +109,7 @@ module.exports = {
   updateProfileSchema,
   customerRegisterSchema,
   customerLoginSchema,
+  googleAuthSchema,
   adminLoginSchema,
   otpRequestSchema,
   otpVerifySchema,

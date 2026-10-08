@@ -238,3 +238,57 @@ describe('OrderDetail — payment method selection', () => {
     });
   });
 });
+
+describe('OrderDetail — payment outcome states', () => {
+  let apiClient;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+    mockUser = { id: 'user-1', fullName: 'Test Customer', phone: '+256772000111', email: 'test@example.ug' };
+    apiClient = require('../../api/client').default;
+  });
+
+  test('a pending attempt offers to reopen the hosted payment page', async () => {
+    const active = {
+      id: 'pay-1',
+      purpose: 'COMMITMENT',
+      status: 'PENDING',
+      amountUgx: 6900,
+      createdAt: '2026-01-01T10:00:00Z',
+      expiresAt: '2026-01-01T10:30:00Z',
+      checkoutUrl: 'https://pay.jjuma.com/pay/TXN-TEST',
+    };
+    setupGetMocks(apiClient, ORDER_PENDING, { ...PAYMENT_INFO_UNPAID, payments: [active], commitmentPaymentStatus: 'PENDING', activePayment: active });
+    renderOrderDetail();
+
+    const link = await screen.findByRole('link', { name: 'Continue to payment' });
+    expect(link).toHaveAttribute('href', 'https://pay.jjuma.com/pay/TXN-TEST');
+    expect(screen.getByText(/your order is not marked as paid/i)).toBeInTheDocument();
+  });
+
+  test('a cancelled last attempt is reported instead of looking in progress', async () => {
+    const cancelled = { id: 'pay-1', purpose: 'COMMITMENT', status: 'CANCELLED', amountUgx: 6900, createdAt: '2026-01-01T10:00:00Z' };
+    setupGetMocks(apiClient, ORDER_PENDING, { ...PAYMENT_INFO_UNPAID, payments: [cancelled], commitmentPaymentStatus: 'CANCELLED' });
+    renderOrderDetail();
+
+    expect(await screen.findByText('Your last payment attempt was cancelled. You can try again below.')).toBeInTheDocument();
+  });
+
+  test('a provider rejection at checkout shows a specific, non-generic message', async () => {
+    setupGetMocks(apiClient);
+    const err = new Error('Payment initiation failed');
+    err.status = 502;
+    err.data = { errors: [{ code: 'PAYMENT_PROVIDER_REJECTED' }] };
+    apiClient.post.mockRejectedValue(err);
+    renderOrderDetail();
+    await screen.findByText(/Action Required: Pay Commitment Deposit/i);
+
+    fireEvent.click(screen.getByText('MTN Mobile Money'));
+    const payBtn = screen.getAllByRole('button', { name: /Pay Deposit/i }).find((b) => !b.disabled);
+    await act(async () => {
+      fireEvent.click(payBtn);
+    });
+
+    expect(await screen.findByText(/could not start this payment\. No money was taken/i)).toBeInTheDocument();
+  });
+});

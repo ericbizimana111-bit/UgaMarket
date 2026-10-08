@@ -129,6 +129,8 @@ model User {
   email        String?  @unique @db.VarChar(255)
   phone        String   @unique @db.VarChar(30)
   passwordHash String   @map("password_hash") @db.VarChar(255)
+  // Google account "sub" for "Continue with Google" (null for phone-only accounts)
+  googleId     String?  @unique @map("google_id") @db.VarChar(64)
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
