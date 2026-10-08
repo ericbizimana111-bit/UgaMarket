@@ -48,6 +48,7 @@
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .account__nav {
@@ -129,10 +130,13 @@
 }
 
 @media (max-width: 900px) {
+  /* minmax(0, 1fr): a plain 1fr track grows to the nav row's full width,
+     pushing the whole account area off-screen on phones. */
   .account__grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
   .account__side {
+    min-width: 0;
     position: static;
     padding: 12px;
   }

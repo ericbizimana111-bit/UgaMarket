@@ -409,7 +409,7 @@
 
 @media (max-width: 900px) {
   .od__cols {
-    grid-template-columns: 1fr;
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 
@@ -456,5 +456,8 @@
   }
   .od__action .btn {
     width: 100%;
+  }
+  .od__card {
+    padding: 14px;
   }
 }
