@@ -36,6 +36,12 @@ const sw = {
   errTooMany: 'Majaribio mengi mno. Subiri kidogo kisha ujaribu tena.',
   errServer: 'Kuna hitilafu upande wetu. Tafadhali jaribu tena baadaye.',
   errGeneric: 'Kuna hitilafu. Tafadhali jaribu tena.',
+  errOffline: 'Huna mtandao. Angalia muunganisho wako wa intaneti kisha ujaribu tena.',
+  errUnreachable: 'Hatukuweza kufikia seva ya UgaMarket. Huenda inawashwa upya. Tafadhali jaribu tena baada ya dakika moja.',
+  errTimeout: 'Seva imechelewa kujibu. Tafadhali jaribu tena.',
+  errBadResponse: 'Seva ina tatizo kwa sasa (hitilafu {status}). Tafadhali jaribu tena baadaye kidogo.',
+  errBadResponseConfig: 'Duka halikuweza kupakia data kutoka kwa seva. Huenda anwani ya seva imewekwa vibaya.',
+  errServerDetail: '{message} (hitilafu {status})',
 
   home: 'Mwanzo',
   catalog: 'Orodha ya Vyakula',

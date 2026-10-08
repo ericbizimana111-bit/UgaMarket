@@ -43,7 +43,7 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   font-weight: 600;
   color: #fff;
   border: 1px solid rgba(255, 255, 255, 0.22);
@@ -52,7 +52,7 @@
 
 .um-footer__col h4 {
   margin-bottom: 14px;
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
   letter-spacing: 0.08em;
   text-transform: uppercase;
   color: #fff;
@@ -93,7 +93,7 @@
   gap: 12px;
   padding: 18px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .um-footer__pay ul {
@@ -118,7 +118,7 @@
   gap: 12px;
   padding: 16px 0 24px;
   border-top: 1px solid rgba(255, 255, 255, 0.14);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .um-footer__bottom-right {

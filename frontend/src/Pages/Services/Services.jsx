@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
 import { AlertCircle, ArrowRight, BadgeCheck, CalendarCheck, Clock, Home as HomeIcon, ShieldCheck, Smartphone, UserCheck } from 'lucide-react';
 import apiClient from '../../api/client';
+import { friendlyError } from '../../utils/errors';
 import { useLanguage } from '../../Context/LanguageContext';
 import { formatUGX } from '../../utils/currency';
 import { iconFor } from '../../utils/categoryIcons';
@@ -21,6 +22,7 @@ const Services = () => {
   const { t, currentLang } = useLanguage();
   const [services, setServices] = useState([]);
   const [state, setState] = useState('loading');
+  const [loadError, setLoadError] = useState('');
 
   useEffect(() => {
     let alive = true;
@@ -32,10 +34,16 @@ const Services = () => {
         setServices(res?.data?.services || []);
         setState('ready');
       })
-      .catch(() => alive && setState('error'));
+      .catch((err) => {
+        if (!alive) return;
+        setLoadError(friendlyError(err, t, 'servicesLoadError'));
+        setState('error');
+      });
     return () => {
       alive = false;
     };
+  // `t` follows currentLang, which is already a dependency.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [currentLang]);
 
   return (
@@ -72,7 +80,7 @@ const Services = () => {
       {state === 'error' && (
         <div className="state-block">
           <AlertCircle size={32} aria-hidden="true" />
-          <p>{t('servicesLoadError')}</p>
+          <p>{loadError || t('servicesLoadError')}</p>
         </div>
       )}
       {state === 'ready' && services.length === 0 && <div className="um-empty-state">{t('servicesEmpty')}</div>}
@@ -96,7 +104,7 @@ const Services = () => {
                   )}
                 </div>
                 <span className="svc-card__cta">
-                  {t('bookNow')} <ArrowRight size={15} aria-hidden="true" className="btn__nudge" />
+                  {t('bookNow')} <ArrowRight size={15} aria-hidden="true" />
                 </span>
               </Link>
             );

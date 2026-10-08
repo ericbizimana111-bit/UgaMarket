@@ -23,13 +23,36 @@ export const API_ORIGIN = (() => {
   }
 })();
 
+/**
+ * `code` says WHY a request failed, so the UI can tell the customer the real
+ * cause instead of guessing:
+ *   OFFLINE       the device has no internet connection
+ *   UNREACHABLE   online, but the UgaMarket server did not answer (down,
+ *                 restarting, or blocked)
+ *   TIMEOUT       the server accepted the connection but did not reply in time
+ *   BAD_RESPONSE  the server replied with something that is not API JSON
+ *                 (e.g. an HTML error page, or a misconfigured API address)
+ *   HTTP          the API answered with an error status (see `status`)
+ */
 export class ApiError extends Error {
-  constructor(message, status, data = null) {
+  constructor(message, status, data = null, code = 'HTTP') {
     super(message);
     this.name = 'ApiError';
     this.status = status;
     this.data = data;
+    this.code = code;
   }
+}
+
+// Long enough for a sleeping free-tier API host to wake up (~30-50 s), short
+// enough that a dead connection does not leave a spinner forever.
+const DEFAULT_TIMEOUT_MS = 60000;
+
+/** Most specific message the API gave: a field-level validation error beats "Validation failed". */
+function apiMessage(data, status) {
+  const fieldError = Array.isArray(data?.errors) ? data.errors.find((e) => e && e.message) : null;
+  if (fieldError && (!data.message || data.message === 'Validation failed')) return fieldError.message;
+  return data?.message || fieldError?.message || `Request failed (HTTP ${status})`;
 }
 
 /** In-memory token mirror so consumers can set/clear without touching localStorage directly. */
@@ -91,25 +114,62 @@ export async function request(endpoint, options = {}) {
     ...options.headers,
   };
 
+  const { timeoutMs = DEFAULT_TIMEOUT_MS, signal: callerSignal, ...fetchOptions } = options;
+
+  // One controller for both the timeout and a caller's own abort signal.
+  const controller = new AbortController();
+  let timedOut = false;
+  const timer = setTimeout(() => {
+    timedOut = true;
+    controller.abort();
+  }, timeoutMs);
+  const forwardAbort = () => controller.abort();
+  if (callerSignal) {
+    if (callerSignal.aborted) controller.abort();
+    else callerSignal.addEventListener('abort', forwardAbort, { once: true });
+  }
+
   const config = {
-    ...options,
+    ...fetchOptions,
     headers,
+    signal: controller.signal,
     body:
-      options.body && typeof options.body === 'object' && !(options.body instanceof FormData)
-        ? JSON.stringify(options.body)
-        : options.body,
+      fetchOptions.body && typeof fetchOptions.body === 'object' && !(fetchOptions.body instanceof FormData)
+        ? JSON.stringify(fetchOptions.body)
+        : fetchOptions.body,
   };
 
   try {
     const response = await fetch(url, config);
 
-    let data;
-    const contentType = response.headers.get('content-type');
-    if (contentType && contentType.includes('application/json')) {
-      data = await response.json();
+    let data = null;
+    const contentType = (response.headers && response.headers.get('content-type')) || '';
+    if (contentType.includes('application/json')) {
+      try {
+        data = await response.json();
+      } catch {
+        throw new ApiError(
+          `The server sent an unreadable response (HTTP ${response.status}).`,
+          response.status,
+          null,
+          'BAD_RESPONSE'
+        );
+      }
     } else {
-      const text = await response.text();
-      data = { message: text };
+      const text = typeof response.text === 'function' ? await response.text() : '';
+      if (text.trim()) {
+        // An HTML page instead of API JSON: a proxy/host error page, or the
+        // shop calling the wrong address. Never show the page itself.
+        throw new ApiError(
+          response.ok
+            ? 'The shop received a web page instead of data from the server. The API address may be misconfigured.'
+            : `The server is having a problem right now (HTTP ${response.status}). Please try again shortly.`,
+          response.status,
+          null,
+          'BAD_RESPONSE'
+        );
+      }
+      data = {};
     }
 
     if (!response.ok) {
@@ -117,11 +177,7 @@ export async function request(endpoint, options = {}) {
         // Session expired / invalid: notify listeners so auth state can be cleared.
         window.dispatchEvent(new CustomEvent('ugamarket:unauthorized'));
       }
-      const message =
-        data?.message ||
-        data?.errors?.[0]?.message ||
-        `Request failed with status ${response.status}`;
-      throw new ApiError(message, response.status, data);
+      throw new ApiError(apiMessage(data, response.status), response.status, data, 'HTTP');
     }
 
     return data;
@@ -129,10 +185,25 @@ export async function request(endpoint, options = {}) {
     if (error instanceof ApiError) {
       throw error;
     }
+    // The caller cancelled (e.g. the page changed): pass the AbortError through.
+    if (callerSignal && callerSignal.aborted && !timedOut) {
+      throw error;
+    }
+    if (timedOut) {
+      throw new ApiError('The server took too long to respond. Please try again.', 0, null, 'TIMEOUT');
+    }
+    if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+      throw new ApiError('You are offline. Check your internet connection and try again.', 0, null, 'OFFLINE');
+    }
     throw new ApiError(
-      error.message || 'Network connection failed. Please check your internet connection.',
-      0
+      'Could not reach the UgaMarket server. It may be restarting or temporarily unavailable. Please try again in a moment.',
+      0,
+      null,
+      'UNREACHABLE'
     );
+  } finally {
+    clearTimeout(timer);
+    if (callerSignal) callerSignal.removeEventListener('abort', forwardAbort);
   }
 }
 

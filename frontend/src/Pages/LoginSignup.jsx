@@ -21,6 +21,7 @@ import {
   validateNewPassword,
   validatePhone
 } from '../utils/inputGuards';
+import { friendlyError } from '../utils/errors';
 import './LoginSignup.css';
 
 const LOGO_SRC = `${process.env.PUBLIC_URL}/logo.png`;
@@ -30,12 +31,23 @@ const LOCKOUT_SECONDS = 30;
 /** Only ever redirect to a page inside this app (blocks "//evil.com" style values). */
 const safeRedirect = (value) => (typeof value === 'string' && /^\/(?!\/)[\w\-./?=&%]*$/.test(value) ? value : '/');
 
+/** Connection and server failures, described by their real cause. */
+const TRANSPORT_CODES = ['OFFLINE', 'UNREACHABLE', 'TIMEOUT', 'BAD_RESPONSE'];
+const transportError = (result, t) => {
+  const { status, error } = result;
+  const code = TRANSPORT_CODES.includes(result.transportCode || result.code) ? result.transportCode || result.code : 'HTTP';
+  if (code !== 'HTTP' || status === 0 || (typeof status === 'number' && status >= 500)) {
+    return friendlyError({ status, code, message: error }, t);
+  }
+  return null;
+};
+
 /** Translate the failure into the customer's language; keep server text only when it is specific. */
 const authErrorMessage = (result, isLogin, t) => {
   const { status, error } = result;
-  if (status === 0) return t('errNetwork');
+  const transport = transportError(result, t);
+  if (transport) return transport;
   if (status === 429) return t('errTooMany');
-  if (typeof status === 'number' && status >= 500) return t('errServer');
   if (isLogin) return status === 400 || status === 401 || status === 404 ? t('errLoginFailed') : error || t('errLoginFailed');
   if (status === 409) return t('errAccountExists');
   return error || t('errRegisterFailed');
@@ -43,7 +55,9 @@ const authErrorMessage = (result, isLogin, t) => {
 
 /** Customer-language message for a failed "Continue with Google" call. */
 const googleErrorMessage = (result, t) => {
-  if (result.status === 0) return t('errNetwork');
+  if (result.status === 503) return t('errGoogleUnavailable');
+  const transport = transportError(result, t);
+  if (transport) return transport;
   if (result.status === 429) return t('errTooMany');
   if (result.code === 'PHONE_IN_USE') return t('errPhoneInUse');
   if (result.code === 'GOOGLE_EMAIL_IN_USE') return t('errGoogleEmailInUse');

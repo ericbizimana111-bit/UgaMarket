@@ -2,7 +2,7 @@
 .um-topbar {
   background: var(--primary);
   color: rgba(255, 255, 255, 0.92);
-  font-size: 0.8rem;
+  font-size: var(--text-xs);
 }
 
 .um-topbar__inner {
@@ -99,11 +99,11 @@
   height: 44px;
   color: var(--ink);
   border-radius: var(--radius-sm);
-  transition: background-color var(--fast) var(--ease);
+  transition: color var(--fast) var(--ease);
 }
 
 .um-icon-btn:hover {
-  background: var(--surface-alt);
+  color: var(--primary);
 }
 
 .um-hamburger {
@@ -121,8 +121,8 @@
   transition: background-color var(--fast) var(--ease);
 }
 
-.um-account-btn:hover {
-  background: var(--surface-alt);
+.um-account-btn:hover .um-account-btn__text {
+  color: var(--primary);
 }
 
 .um-avatar {
@@ -140,8 +140,9 @@
 }
 
 .um-avatar--ghost {
-  color: var(--primary);
-  background: var(--primary-soft);
+  color: var(--ink);
+  background: transparent;
+  border: 1px solid var(--line-strong);
 }
 
 .um-account-btn__text {
@@ -152,7 +153,7 @@
 }
 
 .um-account-btn__text small {
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;
@@ -160,7 +161,7 @@
 }
 
 .um-account-btn__text strong {
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
   color: var(--ink);
   white-space: nowrap;
 }
@@ -182,17 +183,15 @@
   gap: 8px;
   height: 44px;
   padding: 0 14px;
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   font-weight: 700;
-  color: var(--primary);
-  background: var(--primary-soft);
-  border-radius: 999px;
-  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+  color: var(--ink);
+  border-radius: var(--radius-sm);
+  transition: color var(--fast) var(--ease);
 }
 
 .um-cart-btn:hover {
-  background: var(--primary);
-  color: #fff;
+  color: var(--primary);
 }
 
 .um-cart-badge {
@@ -235,12 +234,11 @@
   height: 44px;
   color: var(--text);
   border-radius: 50%;
-  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+  transition: color var(--fast) var(--ease);
 }
 
 .um-icon-link:hover {
   color: var(--primary);
-  background: var(--primary-soft);
 }
 
 .um-icon-badge {
@@ -305,7 +303,7 @@
 }
 
 .um-dropdown__profile span {
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -348,16 +346,18 @@
 }
 
 .um-allcats-btn {
+  flex-shrink: 0;
+  white-space: nowrap;
   display: inline-flex;
   align-items: center;
   gap: 10px;
   height: 36px;
   padding: 0 16px;
-  font-size: 0.86rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   color: #fff;
   background: var(--primary);
-  border-radius: 999px;
+  border-radius: var(--radius-sm);
   transition: background-color var(--fast) var(--ease);
 }
 
@@ -367,6 +367,7 @@
 
 .um-subnav__links {
   display: flex;
+  flex-shrink: 0;
   align-items: center;
   gap: 2px;
 }
@@ -374,13 +375,14 @@
 .um-subnav__link {
   position: relative;
   padding: 12px 12px;
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text);
+  white-space: nowrap;
   transition: color var(--fast) var(--ease);
 }
 
-/* Underline grows from the centre on hover / when active. */
+/* Underline on hover / for the current page. */
 .um-subnav__link::after {
   content: '';
   position: absolute;
@@ -390,8 +392,7 @@
   height: 2px;
   background: var(--primary);
   border-radius: 2px;
-  transform: scaleX(0);
-  transition: transform var(--base) var(--ease);
+  opacity: 0;
 }
 
 .um-subnav__link:hover,
@@ -401,7 +402,7 @@
 
 .um-subnav__link:hover::after,
 .um-subnav__link--active::after {
-  transform: scaleX(1);
+  opacity: 1;
 }
 
 .um-subnav__cats {
@@ -418,15 +419,13 @@
   align-items: center;
   gap: 6px;
   padding: 6px 12px;
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   color: var(--muted);
   white-space: nowrap;
-  border-radius: 999px;
-  transition: background-color var(--fast) var(--ease), color var(--fast) var(--ease);
+  transition: color var(--fast) var(--ease);
 }
 
 .um-subnav__cat:hover {
-  background: var(--primary-soft);
   color: var(--primary);
 }
 
@@ -467,11 +466,7 @@
   display: grid;
   place-items: center;
   flex: 0 0 auto;
-  width: 34px;
-  height: 34px;
-  color: var(--primary);
-  background: var(--primary-soft);
-  border-radius: 10px;
+  color: var(--muted);
 }
 
 .um-mega__text {
@@ -505,7 +500,7 @@
   align-items: center;
   gap: 6px;
   padding: 10px 12px;
-  font-size: 0.86rem;
+  font-size: var(--text-sm);
   font-weight: 700;
   color: var(--primary);
 }
@@ -603,7 +598,7 @@
 
 .um-drawer__label {
   padding: 0 8px 6px;
-  font-size: 0.72rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;

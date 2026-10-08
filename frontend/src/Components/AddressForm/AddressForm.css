@@ -31,7 +31,7 @@
 }
 
 .af-step__head p {
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -131,7 +131,7 @@
 
 .af-results small {
   color: var(--muted);
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -145,7 +145,7 @@
 .af-pin-status {
   min-height: 24px;
   margin-top: 8px;
-  font-size: 0.85rem;
+  font-size: var(--text-sm);
 }
 
 .af-hint {
@@ -179,7 +179,7 @@
 
 .af-chip {
   padding: 8px 16px;
-  font-size: 0.86rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text);
   background: var(--surface);

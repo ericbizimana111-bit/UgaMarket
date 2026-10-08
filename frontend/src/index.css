@@ -1,9 +1,10 @@
 /**
  * UgaMarket — home to home | Storefront design system.
  *
- * Flat, border-based surfaces (no gradients, no box-shadows). Depth comes from
- * spacing, 1px borders, colour and motion. Fluid gutters and clamp()-based
- * type keep every screen from 320px phones to wide desktops readable.
+ * Flat, border-based surfaces. Type is Inter at a 16px base (inputs never go
+ * below 16px, so iOS Safari does not zoom on focus). Icons are drawn in the
+ * text colour with no tinted background behind them. Controls are solid and
+ * change colour on hover; nothing slides, pulses or lifts.
  */
 :root {
   /* Brand */
@@ -50,7 +51,13 @@
   --fast: 0.16s;
   --base: 0.28s;
 
-  --font: 'Plus Jakarta Sans', 'Segoe UI', system-ui, -apple-system, 'Helvetica Neue', Arial, sans-serif;
+  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+
+  /* Type scale (rem; 1rem = 16px). Nothing readable goes below --text-xs. */
+  --text-xs: 0.8125rem; /* 13px: badges, fine print */
+  --text-sm: 0.875rem; /* 14px: secondary text, hints */
+  --text-base: 1rem; /* 16px: body, inputs, buttons */
+  --text-lg: 1.125rem; /* 18px */
 }
 
 *,
@@ -70,8 +77,9 @@ html {
 
 body {
   font-family: var(--font);
-  font-size: 0.9375rem;
-  line-height: 1.6;
+  font-size: var(--text-base);
+  line-height: 1.55;
+  font-feature-settings: 'cv11', 'ss01'; /* Inter: single-storey a, open digits */
   color: var(--text);
   background: var(--bg);
   -webkit-font-smoothing: antialiased;
@@ -116,7 +124,13 @@ h5 {
   color: var(--ink);
   font-weight: 700;
   line-height: 1.25;
-  letter-spacing: -0.01em;
+  letter-spacing: -0.015em;
+}
+
+/* Prices and quantities: digits line up in columns. */
+.num,
+.price {
+  font-variant-numeric: tabular-nums;
 }
 
 :focus-visible {
@@ -167,16 +181,13 @@ h5 {
 
 /* ── Buttons ─────────────────────────────────────────────── */
 .btn {
-  position: relative;
-  isolation: isolate;
-  overflow: hidden;
   display: inline-flex;
   align-items: center;
   justify-content: center;
   gap: 8px;
   min-height: var(--control-h);
   padding: 0 20px;
-  font-size: 0.9rem;
+  font-size: var(--text-base);
   font-weight: 600;
   line-height: 1.2;
   text-align: center;
@@ -184,26 +195,9 @@ h5 {
   border: 1px solid transparent;
   border-radius: var(--radius-sm);
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
   transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease),
-    transform var(--fast) var(--ease), background-color var(--fast) var(--ease);
-}
-
-/* Colour-fill slide on hover: a flat overlay that wipes in from the left. */
-.btn::before {
-  content: '';
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  transform: translateX(-101%);
-  transition: transform var(--base) var(--ease);
-}
-
-.btn:hover:not(:disabled)::before {
-  transform: translateX(0);
-}
-
-.btn:active:not(:disabled) {
-  transform: scale(0.97);
+    background-color var(--fast) var(--ease);
 }
 
 .btn:disabled,
@@ -214,18 +208,14 @@ h5 {
 
 .btn svg {
   flex-shrink: 0;
-  transition: transform var(--base) var(--ease);
-}
-
-.btn:hover:not(:disabled) .btn__nudge {
-  transform: translateX(4px);
 }
 
 .btn-primary {
   background: var(--primary);
   color: #fff;
 }
-.btn-primary::before {
+.btn-primary:hover:not(:disabled),
+.btn-primary:active:not(:disabled) {
   background: var(--primary-hover);
 }
 
@@ -233,7 +223,8 @@ h5 {
   background: var(--accent);
   color: #fff;
 }
-.btn-accent::before {
+.btn-accent:hover:not(:disabled),
+.btn-accent:active:not(:disabled) {
   background: var(--accent-hover);
 }
 
@@ -242,49 +233,50 @@ h5 {
   color: var(--ink);
   border-color: var(--line-strong);
 }
-.btn-secondary::before {
-  background: var(--primary-soft);
-}
-.btn-secondary:hover:not(:disabled) {
-  border-color: var(--primary);
-  color: var(--primary);
+.btn-secondary:hover:not(:disabled),
+.btn-secondary:active:not(:disabled) {
+  border-color: var(--ink);
 }
 
 .btn-ghost {
   background: transparent;
   color: var(--text);
 }
-.btn-ghost::before {
-  background: var(--surface-alt);
+.btn-ghost:hover:not(:disabled) {
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .btn-danger {
   background: var(--danger);
   color: #fff;
 }
-.btn-danger::before {
+.btn-danger:hover:not(:disabled),
+.btn-danger:active:not(:disabled) {
   background: #8c1b12;
 }
 
 .btn-outline-light {
   background: transparent;
   color: #fff;
-  border-color: rgba(255, 255, 255, 0.55);
+  border-color: rgba(255, 255, 255, 0.7);
 }
-.btn-outline-light::before {
-  background: rgba(255, 255, 255, 0.16);
+.btn-outline-light:hover:not(:disabled) {
+  border-color: #fff;
+  background: rgba(255, 255, 255, 0.12);
 }
 
 .btn-sm {
-  min-height: 36px;
+  min-height: 38px;
   padding: 0 14px;
-  font-size: 0.83rem;
+  font-size: var(--text-sm);
 }
 
 .btn-lg {
-  min-height: 52px;
-  padding: 0 28px;
-  font-size: 1rem;
+  min-height: 50px;
+  padding: 0 26px;
+  font-size: var(--text-base);
 }
 
 .btn-block {
@@ -301,7 +293,7 @@ h5 {
 }
 
 .form-label {
-  font-size: 0.84rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--ink);
 }
@@ -318,7 +310,7 @@ h5 {
   min-height: var(--control-h);
   padding: 0 14px;
   font: inherit;
-  font-size: 0.95rem;
+  font-size: var(--text-base); /* 16px: below this iOS Safari zooms on focus */
   color: var(--ink);
   background: var(--surface);
   border: 1px solid var(--line-strong);
@@ -374,14 +366,14 @@ h5 {
 }
 
 .field-error {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--danger);
   font-weight: 500;
 }
 
 .input-hint,
 .um-input-hint {
-  font-size: 0.8rem;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -432,7 +424,7 @@ h5 {
   align-items: center;
   gap: 6px;
   padding: 4px 10px;
-  font-size: 0.74rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   line-height: 1.2;
   border-radius: 999px;
@@ -468,7 +460,8 @@ h5 {
   margin-bottom: 16px;
   border-radius: var(--radius-sm);
   border: 1px solid transparent;
-  font-size: 0.9rem;
+  font-size: var(--text-sm);
+  line-height: 1.5;
 }
 
 .alert svg {
@@ -514,7 +507,7 @@ h5 {
 .section-kicker {
   display: inline-block;
   margin-bottom: 6px;
-  font-size: 0.75rem;
+  font-size: var(--text-xs);
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -573,7 +566,7 @@ h5 {
   z-index: 1;
   flex-shrink: 0;
   padding: 8px 18px;
-  font-size: 0.86rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--muted);
   border-radius: 999px;
@@ -654,13 +647,7 @@ h5 {
 
 .state-block__icon {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 72px;
-  height: 72px;
-  border-radius: 50%;
-  background: var(--primary-soft);
-  color: var(--primary);
+  color: var(--faint);
 }
 
 .um-empty-state {
@@ -682,9 +669,9 @@ h5 {
   color: var(--muted);
 }
 
-/* ── Page enter animation ────────────────────────────────── */
+/* ── Page enter animation (kept as a short fade only) ──────── */
 .um-page {
-  animation: page-in 0.4s var(--ease) both;
+  animation: fade-in 0.2s var(--ease) both;
 }
 
 @keyframes page-in {
@@ -698,13 +685,9 @@ h5 {
   }
 }
 
-/* Scroll reveal (added via IntersectionObserver hook). */
-.reveal {
-  opacity: 0;
-  transform: translateY(16px);
-  transition: opacity 0.5s var(--ease), transform 0.5s var(--ease);
-}
-
+/* Scroll reveal is disabled: content is visible immediately (no fade-in on
+   scroll). The classes stay so existing markup keeps working. */
+.reveal,
 .reveal--in {
   opacity: 1;
   transform: none;
@@ -717,7 +700,7 @@ h5 {
   align-items: center;
   gap: 6px;
   margin-bottom: 16px;
-  font-size: 0.83rem;
+  font-size: var(--text-sm);
   color: var(--muted);
 }
 
@@ -765,7 +748,7 @@ h5 {
   min-width: 38px;
   height: 38px;
   padding: 0 10px;
-  font-size: 0.86rem;
+  font-size: var(--text-sm);
   font-weight: 600;
   color: var(--text);
   background: var(--surface);
@@ -822,18 +805,11 @@ h5 {
 
 .modal__icon {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  background: var(--warning-soft);
   color: var(--warning);
   flex-shrink: 0;
 }
 
 .modal__icon--danger {
-  background: var(--danger-soft);
   color: var(--danger);
 }
 
@@ -898,10 +874,9 @@ h5 {
   }
 }
 
+/* Touch screens: 46px controls (comfortable thumb targets). Body text stays
+   16px on phones — shrinking it makes product names and prices harder to read. */
 @media (max-width: 768px) {
-  body {
-    font-size: 0.9rem;
-  }
   :root {
     --control-h: 46px;
   }

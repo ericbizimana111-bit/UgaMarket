@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Check, Plus } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useCart } from '../../Context/CartContext';
 import { useLanguage } from '../../Context/LanguageContext';
 import { useToast } from '../Toast/Toast';
@@ -31,7 +31,6 @@ const ProductCard = ({ product }) => {
 
   const primaryImage = product.image || (product.images && product.images[0]?.imageUrl) || product.imageUrl;
   const imageUrl = resolveImageUrl(primaryImage) || PLACEHOLDER;
-  const categoryName = product.category ? getLocalizedField(product.category, 'name') || product.category.name : '';
 
   const handleAdd = async (e) => {
     e.preventDefault();
@@ -58,9 +57,9 @@ const ProductCard = ({ product }) => {
           alt={name}
           className="pc__img"
           loading="lazy"
+          decoding="async"
           onError={() => setImageFailed(true)}
         />
-        {categoryName && <span className="pc__cat">{categoryName}</span>}
         {wasPrice && product.discountPercent > 0 && <span className="pc__deal">-{product.discountPercent}%</span>}
         {!isAvailable && (
           <span className="pc__overlay">
@@ -76,7 +75,7 @@ const ProductCard = ({ product }) => {
         </Link>
 
         <div className="pc__price-row">
-          <span className="pc__price">{formatUGX(price)}</span>
+          <span className="pc__price price">{formatUGX(price)}</span>
           {wasPrice ? (
             <s className="pc__was">{formatUGX(wasPrice)}</s>
           ) : (
@@ -100,20 +99,18 @@ const ProductCard = ({ product }) => {
 
         <button
           type="button"
-          className={`btn btn-sm pc__add ${added ? 'pc__add--done' : 'btn-primary'}`}
+          className={`btn pc__add ${added ? 'pc__add--done' : 'btn-primary'}`}
           onClick={handleAdd}
           disabled={!isAvailable || isAdding || loading}
         >
           {added ? (
             <>
-              <Check size={15} strokeWidth={2.5} aria-hidden="true" /> {t('added')}
+              <Check size={16} strokeWidth={2.5} aria-hidden="true" /> {t('added')}
             </>
           ) : isAdding ? (
             t('adding')
           ) : (
-            <>
-              <Plus size={15} strokeWidth={2.5} aria-hidden="true" /> {t('addToCart')}
-            </>
+            t('addToCart')
           )}
         </button>
       </div>

@@ -39,6 +39,12 @@ const lg = {
   errTooMany: 'Ogezezzaako emirundi mingi. Linda katono oddemu ogezeeko.',
   errServer: 'Wabaddewo obuzibu ku ludda lwaffe. Ddamu ogezeeko oluvannyuma.',
   errGeneric: 'Wabaddewo obuzibu. Nsaba oddemu ogezeeko.',
+  errOffline: 'Tolina intaneti. Kebera intaneti yo oddemu ogezeeko.',
+  errUnreachable: "Tetusobodde kutuuka ku server ya UgaMarket. Eyinza okuba ng'eddamu okutandika. Ddamu ogezeeko oluvannyuma lw'eddakiika emu.",
+  errTimeout: 'Server erudde nnyo okuddamu. Ddamu ogezeeko.',
+  errBadResponse: 'Server erina obuzibu kati (ensobi {status}). Ddamu ogezeeko oluvannyuma.',
+  errBadResponseConfig: 'Edduuka teryasobodde kufuna data okuva ku server. Endagiriro ya server eyinza okuba nga teteekeddwa bulungi.',
+  errServerDetail: '{message} (ensobi {status})',
 
   home: 'Awaka',
   catalog: 'Ebyokulya Byonna',

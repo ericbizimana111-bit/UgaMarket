@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect, useCallback } fr
 import apiClient from '../api/client';
 import { useAuth } from './AuthContext';
 import { useLanguage } from './LanguageContext';
+import { friendlyError } from '../utils/errors';
 // NOTE: the authoritative cart for authenticated customers is the backend cart
 // (GET/POST/PATCH/DELETE /api/cart...). localStorage is used ONLY for guests,
 // and is synced into the server cart right after login.
@@ -12,7 +13,7 @@ const GUEST_CART_STORAGE_KEY = 'ugamarket_guest_cart';
 
 export const CartProvider = ({ children }) => {
   const { isAuthenticated, token } = useAuth();
-  const { currentLang } = useLanguage();
+  const { currentLang, t } = useLanguage();
 
   const [cart, setCart] = useState({
     id: null,
@@ -73,10 +74,12 @@ export const CartProvider = ({ children }) => {
       }
     } catch (err) {
       console.error('Failed to fetch cart from server', err);
-      setError(err.message);
+      setError(friendlyError(err, t));
     } finally {
       setLoading(false);
     }
+  // `t` follows currentLang, which is already a dependency.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isAuthenticated, currentLang]);
 
   // Sync guest cart to server on login
@@ -133,7 +136,7 @@ export const CartProvider = ({ children }) => {
         }
         return { success: true };
       } catch (err) {
-        const msg = err.message || 'Failed to add item to cart';
+        const msg = friendlyError(err, t);
         setError(msg);
         return { success: false, error: msg };
       } finally {
@@ -173,7 +176,7 @@ export const CartProvider = ({ children }) => {
         loadGuestCart();
         return { success: true };
       } catch (err) {
-        return { success: false, error: err.message };
+        return { success: false, error: friendlyError(err, t) };
       }
     }
   };
@@ -200,7 +203,7 @@ export const CartProvider = ({ children }) => {
         }
         return { success: true };
       } catch (err) {
-        const msg = err.message || 'Failed to update item quantity';
+        const msg = friendlyError(err, t);
         setError(msg);
         return { success: false, error: msg };
       } finally {
@@ -221,7 +224,7 @@ export const CartProvider = ({ children }) => {
         }
         return { success: true };
       } catch (err) {
-        return { success: false, error: err.message };
+        return { success: false, error: friendlyError(err, t) };
       }
     }
   };
@@ -240,7 +243,7 @@ export const CartProvider = ({ children }) => {
         }
         return { success: true };
       } catch (err) {
-        const msg = err.message || 'Failed to remove item';
+        const msg = friendlyError(err, t);
         setError(msg);
         return { success: false, error: msg };
       } finally {
@@ -255,7 +258,7 @@ export const CartProvider = ({ children }) => {
         loadGuestCart();
         return { success: true };
       } catch (err) {
-        return { success: false, error: err.message };
+        return { success: false, error: friendlyError(err, t) };
       }
     }
   };
@@ -273,7 +276,7 @@ export const CartProvider = ({ children }) => {
           await fetchServerCart();
         }
       } catch (err) {
-        setError(err.message || 'Failed to clear cart');
+        setError(friendlyError(err, t));
       } finally {
         setLoading(false);
       }

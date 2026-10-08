@@ -42,6 +42,12 @@ const en = {
   errTooMany: 'Too many attempts. Please wait a moment and try again.',
   errServer: 'Something went wrong on our side. Please try again shortly.',
   errGeneric: 'Something went wrong. Please try again.',
+  errOffline: 'You are offline. Check your internet connection and try again.',
+  errUnreachable: 'We could not reach the UgaMarket server. It may be restarting. Please try again in a minute.',
+  errTimeout: 'The server took too long to respond. Please try again.',
+  errBadResponse: 'The server is having a problem right now (error {status}). Please try again shortly.',
+  errBadResponseConfig: 'The shop could not load data from the server. The server address may be set up incorrectly.',
+  errServerDetail: '{message} (error {status})',
 
   // ── Navigation / header ─────────────────────────────────────
   home: 'Home',

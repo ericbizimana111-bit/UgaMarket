@@ -39,6 +39,74 @@ describe('api client (UgaMarket — home to home)', () => {
     });
   });
 
+  test('a field-level validation error replaces the generic "Validation failed"', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 400,
+      headers: { get: () => 'application/json' },
+      json: async () => ({ success: false, message: 'Validation failed', errors: [{ field: 'phone', message: 'Invalid Uganda phone number format' }] }),
+    });
+    await expect(apiClient.post('/auth/register', {})).rejects.toMatchObject({
+      status: 400,
+      code: 'HTTP',
+      message: 'Invalid Uganda phone number format',
+    });
+  });
+
+  test('an HTML page instead of JSON is BAD_RESPONSE, and the page is never shown', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: false,
+      status: 502,
+      headers: { get: () => 'text/html' },
+      text: async () => '<html><body>Bad Gateway</body></html>',
+    });
+    const err = await apiClient.get('/products').catch((e) => e);
+    expect(err).toMatchObject({ status: 502, code: 'BAD_RESPONSE' });
+    expect(err.message).not.toMatch(/<html/);
+  });
+
+  test('a 200 HTML page (wrong API address) is reported as a configuration problem', async () => {
+    global.fetch = jest.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      headers: { get: () => 'text/html' },
+      text: async () => '<!doctype html><div id="root"></div>',
+    });
+    await expect(apiClient.get('/products')).rejects.toMatchObject({ code: 'BAD_RESPONSE', status: 200 });
+  });
+
+  test('offline vs unreachable are told apart', async () => {
+    global.fetch = jest.fn().mockRejectedValue(new TypeError('Failed to fetch'));
+    const online = jest.spyOn(window.navigator, 'onLine', 'get');
+    online.mockReturnValue(false);
+    await expect(apiClient.get('/products')).rejects.toMatchObject({ code: 'OFFLINE', status: 0 });
+    online.mockReturnValue(true);
+    await expect(apiClient.get('/products')).rejects.toMatchObject({ code: 'UNREACHABLE', status: 0 });
+  });
+
+  test('a request that never answers times out with code TIMEOUT', async () => {
+    global.fetch = jest.fn(
+      (url, { signal }) =>
+        new Promise((resolve, reject) => {
+          signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        })
+    );
+    await expect(apiClient.get('/products', { timeoutMs: 20 })).rejects.toMatchObject({ code: 'TIMEOUT', status: 0 });
+  });
+
+  test("a caller's own abort passes through as AbortError (not reported as an error)", async () => {
+    global.fetch = jest.fn(
+      (url, { signal }) =>
+        new Promise((resolve, reject) => {
+          signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+        })
+    );
+    const controller = new AbortController();
+    const pending = apiClient.get('/products', { signal: controller.signal });
+    controller.abort();
+    await expect(pending).rejects.toMatchObject({ name: 'AbortError' });
+  });
+
   test('401 responses dispatch the unauthorized event for session expiry handling', async () => {
     global.fetch = jest.fn().mockResolvedValue({
       ok: false,

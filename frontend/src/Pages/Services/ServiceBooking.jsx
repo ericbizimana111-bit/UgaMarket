@@ -43,11 +43,13 @@ const ServiceBooking = () => {
   const [contactPhone, setContactPhone] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState(null);
+  const [loadError, setLoadError] = useState(null); // { notFound, message }
   const [touched, setTouched] = useState(false);
 
   useEffect(() => {
     let alive = true;
     setLoadState('loading');
+    setLoadError(null);
     apiClient
       .get(`/services/${encodeURIComponent(slug)}?lang=${currentLang}`)
       .then((res) => {
@@ -55,10 +57,16 @@ const ServiceBooking = () => {
         setService(res?.data?.service || null);
         setLoadState('ready');
       })
-      .catch(() => alive && setLoadState('error'));
+      .catch((err) => {
+        if (!alive) return;
+        setLoadError({ notFound: err?.status === 404, message: friendlyError(err, t, 'serviceNotFound') });
+        setLoadState('error');
+      });
     return () => {
       alive = false;
     };
+  // `t` follows currentLang, which is already a dependency.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [slug, currentLang]);
 
   useEffect(() => {
@@ -144,7 +152,8 @@ const ServiceBooking = () => {
       <div className="container">
         <div className="state-block panel">
           <AlertTriangle size={32} aria-hidden="true" />
-          <h1>{t('serviceNotFound')}</h1>
+          <h1>{!loadError || loadError.notFound ? t('serviceNotFound') : t('errGeneric')}</h1>
+          {loadError && !loadError.notFound && <p>{loadError.message}</p>}
           <Link to="/services" className="btn btn-primary">
             {t('allServices')}
           </Link>

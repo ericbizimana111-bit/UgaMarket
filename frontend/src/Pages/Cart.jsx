@@ -181,7 +181,7 @@ const Cart = () => {
           <p className="cart__fine">{t('totalsNote')}</p>
 
           <button type="button" onClick={handleCheckout} disabled={loading} className="btn btn-primary btn-lg btn-block">
-            {isAuthenticated ? t('checkout') : t('loginAndCheckout')} <ArrowRight size={18} aria-hidden="true" className="btn__nudge" />
+            {isAuthenticated ? t('checkout') : t('loginAndCheckout')} <ArrowRight size={18} aria-hidden="true" />
           </button>
 
           <ul className="cart__guarantees">

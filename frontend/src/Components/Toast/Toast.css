@@ -19,7 +19,7 @@
   background: var(--ink);
   border-radius: var(--radius);
   border-left: 4px solid var(--faint);
-  font-size: 0.88rem;
+  font-size: var(--text-sm);
   font-weight: 500;
   line-height: 1.4;
   pointer-events: auto;

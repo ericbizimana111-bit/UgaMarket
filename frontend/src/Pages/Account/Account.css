@@ -44,7 +44,7 @@
 
 .account__user span,
 .account__user small {
-  font-size: 0.82rem;
+  font-size: var(--text-sm);
   color: var(--muted);
   overflow: hidden;
   text-overflow: ellipsis;

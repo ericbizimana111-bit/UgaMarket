@@ -112,7 +112,7 @@ const Orders = () => {
                 </div>
                 <div className="order__cta">
                   <Link to={`/account/orders/${order.id}`} className="btn btn-secondary btn-sm">
-                    {t('viewAndTrack')} <ArrowRight size={15} aria-hidden="true" className="btn__nudge" />
+                    {t('viewAndTrack')} <ArrowRight size={15} aria-hidden="true" />
                   </Link>
                 </div>
               </dl>

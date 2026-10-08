@@ -36,6 +36,12 @@ const fr = {
   errTooMany: 'Trop de tentatives. Patientez un instant puis réessayez.',
   errServer: 'Un problème est survenu de notre côté. Réessayez dans un instant.',
   errGeneric: 'Un problème est survenu. Veuillez réessayer.',
+  errOffline: 'Vous êtes hors ligne. Vérifiez votre connexion internet et réessayez.',
+  errUnreachable: 'Impossible de joindre le serveur UgaMarket. Il redémarre peut-être. Réessayez dans une minute.',
+  errTimeout: 'Le serveur a mis trop de temps à répondre. Veuillez réessayer.',
+  errBadResponse: 'Le serveur rencontre un problème (erreur {status}). Réessayez dans un instant.',
+  errBadResponseConfig: 'La boutique n’a pas pu charger les données du serveur. L’adresse du serveur est peut-être mal configurée.',
+  errServerDetail: '{message} (erreur {status})',
 
   home: 'Accueil',
   catalog: 'Catalogue alimentaire',

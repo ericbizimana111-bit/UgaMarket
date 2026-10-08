@@ -29,16 +29,12 @@
   flex-shrink: 0;
   display: grid;
   place-items: center;
-  width: 34px;
-  height: 34px;
+  width: 24px;
   color: var(--muted);
-  background: var(--surface-alt);
-  border-radius: 50%;
 }
 
 .note--unread .note__icon {
-  color: #fff;
-  background: var(--primary);
+  color: var(--primary);
 }
 
 .note__body--link:hover strong {
@@ -63,7 +59,7 @@
 }
 
 .note__body time {
-  font-size: 0.78rem;
+  font-size: var(--text-xs);
   color: var(--muted);
 }
 

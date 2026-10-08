@@ -8,12 +8,9 @@ import {
   ChevronRight,
   Clock,
   CreditCard,
-  Headset,
   ShieldCheck,
   ShoppingBag,
   ShoppingBasket,
-  Smartphone,
-  Store,
   Truck,
   Wallet,
   Wrench
@@ -28,15 +25,24 @@ import { useLanguage } from '../Context/LanguageContext';
 import useCategories from '../utils/useCategories';
 import { iconFor } from '../utils/categoryIcons';
 import { formatUGX } from '../utils/currency';
+import { friendlyError } from '../utils/errors';
 import './Shop.css';
 
 const CAT_PLACEHOLDER = '/img-placeholder.svg';
-const SLIDE_MS = 6500;
+const SLIDE_MS = 7000;
+const HERO_DIR = `${process.env.PUBLIC_URL}/hero`;
 
+/** Responsive sources for a hero photo (560w for phones, 960w otherwise). */
+const heroPhoto = (name) => ({
+  src: `${HERO_DIR}/${name}-960.webp`,
+  srcSet: `${HERO_DIR}/${name}-560.webp 560w, ${HERO_DIR}/${name}-960.webp 960w`
+});
+
+// Photos are of products we actually sell (see public/hero/CREDITS.md).
 const SLIDES = [
-  { key: 'mslide1', tone: 'green', to: '/catalog', Icon: ShoppingBag },
-  { key: 'mslide2', tone: 'amber', to: '/services', Icon: Wrench },
-  { key: 'mslide3', tone: 'ink', to: '/how-it-works', Icon: Smartphone }
+  { key: 'heroFood', tone: 'green', to: '/catalog?category=matooke-tubers', photo: 'matooke' },
+  { key: 'heroPhones', tone: 'ink', to: '/catalog?category=phones-tablets', photo: 'phones' },
+  { key: 'heroFashion', tone: 'clay', to: '/catalog?category=fashion', photo: 'kitenge' }
 ];
 
 const FEATURED_QUERIES = {
@@ -111,29 +117,35 @@ const Hero = () => {
         aria-roledescription="carousel"
         aria-label={t('brandTagline')}
       >
-        {SLIDES.map(({ key, tone, to, Icon }, i) => (
+        {SLIDES.map(({ key, tone, to, photo }, i) => (
           <article
             key={key}
             className={`slide slide--${tone} ${i === index ? 'slide--active' : ''}`}
             aria-hidden={i !== index}
             role="group"
             aria-roledescription="slide"
+            aria-label={t('slideGoTo', { n: i + 1 })}
           >
             <div className="slide__copy">
               <span className="slide__kicker">{t(`${key}Kicker`)}</span>
               <h2 className="slide__title">{t(`${key}Title`)}</h2>
               <p className="slide__desc">{t(`${key}Desc`)}</p>
               <Link to={to} className="btn btn-lg slide__cta" tabIndex={i === index ? 0 : -1}>
-                {t(`${key}Cta`)} <ArrowRight size={18} aria-hidden="true" className="btn__nudge" />
+                {t(`${key}Cta`)} <ArrowRight size={18} aria-hidden="true" />
               </Link>
             </div>
-            <div className="slide__art" aria-hidden="true">
-              <span className="slide__ring slide__ring--a" />
-              <span className="slide__ring slide__ring--b" />
-              <span className="slide__icon">
-                <Icon size={84} strokeWidth={1.2} />
-              </span>
-            </div>
+            <Link to={to} className="slide__photo" tabIndex={-1} aria-hidden="true">
+              <img
+                {...heroPhoto(photo)}
+                sizes="(max-width: 900px) 100vw, 560px"
+                width="960"
+                height="720"
+                alt=""
+                loading={i === 0 ? 'eager' : 'lazy'}
+                fetchPriority={i === 0 ? 'high' : 'auto'}
+                decoding="async"
+              />
+            </Link>
           </article>
         ))}
 
@@ -161,9 +173,6 @@ const Hero = () => {
 
       <aside className="hero__side">
         <div className="panel hero__member">
-          <span className="hero__member-avatar">
-            <Store size={22} aria-hidden="true" />
-          </span>
           <h2>{isAuthenticated ? t('welcomeBack', { name: firstName }) : t('welcomeTitle')}</h2>
           <p>{isAuthenticated ? t('welcomeBackDesc') : t('welcomeDesc')}</p>
           {isAuthenticated ? (
@@ -187,22 +196,15 @@ const Hero = () => {
           )}
         </div>
 
-        <div className="hero__tiles">
-          <div className="panel hero__tile">
-            <Smartphone size={20} aria-hidden="true" />
-            <div>
-              <strong>{t('tileMomoTitle')}</strong>
-              <span>{t('tileMomoDesc')}</span>
-            </div>
-          </div>
-          <div className="panel hero__tile">
-            <Headset size={20} aria-hidden="true" />
-            <div>
-              <strong>{t('tileSupportTitle')}</strong>
-              <span>{t('tileSupportDesc')}</span>
-            </div>
-          </div>
-        </div>
+        <Link to="/catalog?category=electronics" className="panel hero__tile">
+          <img {...heroPhoto('tv')} sizes="280px" width="560" height="420" alt="" loading="lazy" decoding="async" />
+          <span className="hero__tile-text">
+            <strong>{t('heroTileTitle')}</strong>
+            <span>
+              {t('heroTileCta')} <ArrowRight size={15} aria-hidden="true" />
+            </span>
+          </span>
+        </Link>
       </aside>
     </section>
   );
@@ -222,9 +224,7 @@ const TrustStrip = () => {
       <ul className="trust panel">
         {items.map(({ Icon, title, desc }) => (
           <li key={title} className="trust__item">
-            <span className="trust__icon">
-              <Icon size={22} aria-hidden="true" />
-            </span>
+            <Icon size={26} strokeWidth={1.75} aria-hidden="true" className="trust__icon" />
             <span>
               <strong>{title}</strong>
               <small>{desc}</small>
@@ -244,6 +244,7 @@ const Shop = () => {
   const [tab, setTab] = useState('featured');
   const [products, setProducts] = useState([]);
   const [featuredState, setFeaturedState] = useState('loading'); // loading | ready | error
+  const [featuredError, setFeaturedError] = useState('');
   const [reloadKey, setReloadKey] = useState(0);
   const [services, setServices] = useState([]);
   const featuredCache = useRef({});
@@ -267,10 +268,16 @@ const Shop = () => {
         setProducts(list);
         setFeaturedState('ready');
       })
-      .catch(() => alive && setFeaturedState('error'));
+      .catch((err) => {
+        if (!alive) return;
+        setFeaturedError(friendlyError(err, t, 'productsLoadError'));
+        setFeaturedState('error');
+      });
     return () => {
       alive = false;
     };
+  // `t` follows currentLang, which is already a dependency.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tab, currentLang, reloadKey]);
 
   useEffect(() => {
@@ -310,7 +317,7 @@ const Shop = () => {
             <p className="section-desc">{t('catsDesc')}</p>
           </div>
           <Link to="/catalog" className="btn btn-secondary btn-sm">
-            {t('viewAll')} <ArrowRight size={15} aria-hidden="true" className="btn__nudge" />
+            {t('viewAll')} <ArrowRight size={15} aria-hidden="true" />
           </Link>
         </div>
 
@@ -365,7 +372,7 @@ const Shop = () => {
         ) : featuredState === 'error' ? (
           <div className="state-block">
             <AlertCircle size={32} aria-hidden="true" />
-            <p>{t('productsLoadError')}</p>
+            <p>{featuredError || t('productsLoadError')}</p>
             <button type="button" className="btn btn-secondary btn-sm" onClick={() => setReloadKey((k) => k + 1)}>
               {t('retry')}
             </button>
@@ -390,7 +397,7 @@ const Shop = () => {
 
         <div className="featured__more">
           <Link to="/catalog" className="btn btn-primary">
-            {t('viewAllProducts')} <ArrowRight size={16} aria-hidden="true" className="btn__nudge" />
+            {t('viewAllProducts')} <ArrowRight size={16} aria-hidden="true" />
           </Link>
         </div>
       </Reveal>
@@ -405,7 +412,7 @@ const Shop = () => {
             </div>
             <Link to="/how-it-works" className="btn btn-secondary btn-sm">
               {t('howItWorksShort')}
-              <ArrowRight size={15} aria-hidden="true" className="btn__nudge" />
+              <ArrowRight size={15} aria-hidden="true" />
             </Link>
           </div>
           <ol className="how__steps">
@@ -415,10 +422,7 @@ const Shop = () => {
               { n: '03', Icon: ShieldCheck, title: t('howStep3Title'), desc: t('howStep3Desc') }
             ].map(({ n, Icon, title, desc }) => (
               <li key={n} className="how__step">
-                <span className="how__num">{n}</span>
-                <span className="how__icon">
-                  <Icon size={26} strokeWidth={1.6} aria-hidden="true" />
-                </span>
+                <Icon size={28} strokeWidth={1.75} aria-hidden="true" className="how__icon" />
                 <h3>{title}</h3>
                 <p>{desc}</p>
               </li>
@@ -438,7 +442,7 @@ const Shop = () => {
               <h2>{t('homeServicesTitle')}</h2>
               <p>{t('homeServicesDesc')}</p>
               <Link to="/services" className="btn btn-accent">
-                {t('allServices')} <ArrowRight size={16} aria-hidden="true" className="btn__nudge" />
+                {t('allServices')} <ArrowRight size={16} aria-hidden="true" />
               </Link>
             </div>
             <ul className="home-svc__list">
@@ -447,9 +451,7 @@ const Shop = () => {
                 return (
                   <li key={s.id}>
                     <Link to={`/services/${s.slug}`} className="home-svc__card">
-                      <span className="home-svc__icon">
-                        <Icon size={22} aria-hidden="true" />
-                      </span>
+                      <Icon size={24} aria-hidden="true" className="home-svc__icon" />
                       <span>
                         <strong>{s.name}</strong>
                         <small>
