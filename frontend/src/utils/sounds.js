@@ -127,6 +127,7 @@ export function toneForNotification(type) {
     case 'SERVICE_UPDATE':
       return 'order';
     case 'SECURITY':
+    case 'MISSED_CALL':
       return 'warning';
     default:
       return 'alert';

@@ -158,7 +158,7 @@ export function RealtimeProvider({ children }) {
           if (data?.by === 'ADMIN') refresh();
         });
         // Receipts and voice-call signalling are forwarded to the pages/providers.
-        ['chat:delivered', 'call:incoming', 'call:taken', 'call:signal', 'call:ended'].forEach((name) =>
+        ['chat:delivered', 'call:incoming', 'call:taken', 'call:accepted', 'call:signal', 'call:ended'].forEach((name) =>
           source.addEventListener(name, (e) => emit(name, parse(e))),
         );
         source.onerror = () => {

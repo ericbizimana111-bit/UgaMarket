@@ -33,7 +33,8 @@ export default function CallPanel() {
           <div className="callcard__body">
             <strong>{active.customer?.fullName || 'Customer'}</strong>
             <span>
-              {active.customer?.phone} · {active.state === 'connected' ? elapsed : 'Connecting…'}
+              {active.customer?.phone} ·{' '}
+              {active.state === 'connected' ? elapsed : active.state === 'calling' ? 'Calling… (ringing on their UgaMarket)' : 'Connecting…'}
             </span>
           </div>
           <Link to={`/messages?customer=${active.customer?.id}`} className="callcard__btn" title="Open chat with this customer" aria-label="Open chat">

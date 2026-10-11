@@ -105,7 +105,7 @@ export const RealtimeProvider = ({ children }) => {
           }
           emit('chat:message', data);
         });
-        ['chat:read', 'chat:delivered', 'service:update', 'order:update', 'call:accepted', 'call:signal', 'call:ended'].forEach((name) =>
+        ['chat:read', 'chat:delivered', 'service:update', 'order:update', 'call:incoming', 'call:accepted', 'call:signal', 'call:ended'].forEach((name) =>
           source.addEventListener(name, (e) => emit(name, safeParse(e.data)))
         );
         source.onerror = () => {

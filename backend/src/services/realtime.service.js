@@ -26,6 +26,7 @@ const HEARTBEAT_MS = 25000;
 const TICKET_SECRET = crypto.createHash('sha256').update(`realtime-ticket:${env.JWT_SECRET}:${env.ADMIN_JWT_SECRET}`).digest('hex');
 
 const channels = new Map(); // channel -> Set<client>
+const disconnectListeners = new Set(); // fn(channelName) when a channel's last connection closes
 let nextClientId = 1;
 
 function issueTicket({ kind, id }) {
@@ -78,10 +79,25 @@ function subscribe(req, res, channelNames) {
       const set = channels.get(name);
       if (set) {
         set.delete(client);
-        if (set.size === 0) channels.delete(name);
+        if (set.size === 0) {
+          channels.delete(name);
+          for (const fn of disconnectListeners) {
+            try {
+              fn(name);
+            } catch (error) {
+              logger.warn('[realtime] disconnect listener failed:', error.message);
+            }
+          }
+        }
       }
     }
   });
+}
+
+/** Be told when the last open connection of a channel closes. */
+function onChannelEmpty(fn) {
+  disconnectListeners.add(fn);
+  return () => disconnectListeners.delete(fn);
 }
 
 /** Push an event to every subscriber of a channel. Never throws. */
@@ -104,4 +120,4 @@ function stats() {
   return out;
 }
 
-module.exports = { issueTicket, verifyTicket, subscribe, publish, subscriberCount, stats, TICKET_TTL_SECONDS };
+module.exports = { issueTicket, verifyTicket, subscribe, publish, subscriberCount, onChannelEmpty, stats, TICKET_TTL_SECONDS };

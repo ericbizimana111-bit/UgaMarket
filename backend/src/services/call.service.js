@@ -6,7 +6,9 @@ const realtime = require('./realtime.service');
 const notifications = require('./notification.service');
 
 /**
- * Customer -> store voice calls.
+ * Voice calls between customers and the store, in both directions:
+ *   INBOUND   the customer calls; every staff console rings; first to answer wins
+ *   OUTBOUND  a staff member calls a customer who has UgaMarket open
  *
  * Audio is WebRTC, peer-to-peer and always encrypted (DTLS-SRTP). The server
  * only relays the call set-up messages ("signals": SDP offer/answer and ICE
@@ -28,7 +30,11 @@ const LIVE = ['RINGING', 'ACTIVE'];
 const SIGNAL_TYPES = new Set(['offer', 'answer', 'ice']);
 const MAX_SIGNAL_BYTES = 16 * 1024;
 const MAX_CALLS_PER_10_MIN = 5;
+const MAX_OUTBOUND_PER_10_MIN = 20;
 const timers = new Map(); // callId -> timeout
+
+/** Who placed the call: that side sends the WebRTC offer. */
+const callerSide = (call) => (call.direction === 'OUTBOUND' ? 'ADMIN' : 'CUSTOMER');
 
 function codedError(message, statusCode, code) {
   const err = new AppError(message, statusCode, [{ code, message }]);
@@ -61,6 +67,7 @@ function callConfig() {
 function formatCall(c) {
   return {
     id: c.id,
+    direction: c.direction || 'INBOUND',
     status: c.status,
     endReason: c.endReason || null,
     endedBy: c.endedBy || null,
@@ -90,7 +97,7 @@ function schedule(callId, ms, fn) {
 }
 
 function broadcastEnded(call) {
-  const payload = { callId: call.id, status: call.status, reason: call.endReason || null, endedBy: call.endedBy || null };
+  const payload = { callId: call.id, direction: call.direction, status: call.status, reason: call.endReason || null, endedBy: call.endedBy || null };
   realtime.publish(`user:${call.userId}`, 'call:ended', payload);
   realtime.publish('admins', 'call:ended', payload);
 }
@@ -103,9 +110,20 @@ async function finish(callId, { status, reason, endedBy, fromStatuses = LIVE }) 
   });
   clearTimer(callId);
   if (result.count !== 1) return null;
-  const call = await prisma.callSession.findUnique({ where: { id: callId }, include: { user: { select: { id: true, fullName: true, phone: true } } } });
+  const call = await prisma.callSession.findUnique({
+    where: { id: callId },
+    include: { user: { select: { id: true, fullName: true, phone: true } }, admin: { select: { id: true, fullName: true } } },
+  });
   broadcastEnded(call);
-  if (status === 'MISSED') {
+  if (status === 'MISSED' && call.direction === 'OUTBOUND') {
+    // The customer missed OUR call: tell them so they can call back.
+    await notifications.notifyCustomer(call.userId, {
+      type: 'MISSED_CALL',
+      title: 'Missed call from UgaMarket',
+      message: `${call.admin?.fullName || 'Our team'} from UgaMarket tried to call you. Reply in Messages or call us back.`,
+      linkUrl: '/account/messages',
+    });
+  } else if (status === 'MISSED') {
     await notifications.notifyAdmins({
       type: notifications.ADMIN_NOTIFICATION_TYPES.MISSED_CALL,
       title: `Missed call from ${call.user.fullName}`,
@@ -181,7 +199,7 @@ async function startCall(userId) {
 // ------------------------------------------------------------
 async function acceptCall(admin, callId) {
   const result = await prisma.callSession.updateMany({
-    where: { id: callId, status: 'RINGING' },
+    where: { id: callId, status: 'RINGING', direction: 'INBOUND' },
     data: { status: 'ACTIVE', adminId: admin.id, answeredAt: new Date() },
   });
   if (result.count !== 1) throw codedError('This call was already answered or has ended.', 409, 'CALL_UNAVAILABLE');
@@ -197,8 +215,75 @@ async function acceptCall(admin, callId) {
 }
 
 async function rejectCall(admin, callId) {
+  const target = await prisma.callSession.findUnique({ where: { id: callId }, select: { direction: true } });
+  if (!target || target.direction !== 'INBOUND') throw codedError('This call was already answered or has ended.', 409, 'CALL_UNAVAILABLE');
   const call = await finish(callId, { status: 'REJECTED', reason: 'DECLINED', endedBy: 'ADMIN', fromStatuses: ['RINGING'] });
   if (!call) throw codedError('This call was already answered or has ended.', 409, 'CALL_UNAVAILABLE');
+  return formatCall(call);
+}
+
+/** Staff call a customer. The customer must have UgaMarket open to ring. */
+async function startOutboundCall(admin, userId) {
+  await sweepStale(userId);
+  const user = await prisma.user.findUnique({ where: { id: userId }, select: { id: true, fullName: true, phone: true, isActive: true } });
+  if (!user || !user.isActive) throw new AppError('Customer not found', 404);
+
+  const [customerBusy, agentBusy, recent] = await Promise.all([
+    prisma.callSession.findFirst({ where: { userId, status: { in: LIVE } }, select: { id: true } }),
+    prisma.callSession.findFirst({ where: { adminId: admin.id, status: { in: LIVE } }, select: { id: true } }),
+    prisma.callSession.count({ where: { adminId: admin.id, direction: 'OUTBOUND', createdAt: { gte: new Date(Date.now() - 10 * 60 * 1000) } } }),
+  ]);
+  if (customerBusy) throw codedError('This customer is already on a call.', 409, 'CUSTOMER_BUSY');
+  if (agentBusy) throw codedError('Finish your current call first.', 409, 'AGENT_BUSY');
+  if (recent >= MAX_OUTBOUND_PER_10_MIN) throw codedError('Too many calls in a short time. Please wait a few minutes.', 429, 'CALL_RATE_LIMITED');
+
+  const call = await prisma.callSession.create({
+    data: { userId, adminId: admin.id, direction: 'OUTBOUND' },
+    include: { user: { select: { id: true, fullName: true, phone: true } }, admin: { select: { id: true, fullName: true } } },
+  });
+
+  if (realtime.subscriberCount(`user:${userId}`) === 0) {
+    await finish(call.id, { status: 'MISSED', reason: 'CUSTOMER_OFFLINE', endedBy: 'SYSTEM' });
+    throw codedError(
+      `${user.fullName} does not have UgaMarket open right now, so the call cannot ring. They have been told you tried to call — send them a message or phone ${user.phone}.`,
+      409,
+      'CUSTOMER_OFFLINE'
+    );
+  }
+
+  realtime.publish(`user:${userId}`, 'call:incoming', {
+    callId: call.id,
+    agentName: admin.fullName,
+    ringTimeoutSeconds: env.CALL_RING_TIMEOUT_SECONDS,
+  });
+  schedule(call.id, env.CALL_RING_TIMEOUT_SECONDS * 1000, () =>
+    finish(call.id, { status: 'MISSED', reason: 'NO_ANSWER', endedBy: 'SYSTEM', fromStatuses: ['RINGING'] })
+  );
+  return formatCall(call);
+}
+
+/** The customer answers a staff call. */
+async function acceptOutboundCall(userId, callId) {
+  const result = await prisma.callSession.updateMany({
+    where: { id: callId, userId, status: 'RINGING', direction: 'OUTBOUND' },
+    data: { status: 'ACTIVE', answeredAt: new Date() },
+  });
+  if (result.count !== 1) throw codedError('This call has already ended.', 409, 'CALL_UNAVAILABLE');
+  const call = await prisma.callSession.findUnique({
+    where: { id: callId },
+    include: { user: { select: { id: true, fullName: true, phone: true } }, admin: { select: { id: true, fullName: true } } },
+  });
+  realtime.publish(`admin:${call.adminId}`, 'call:accepted', { callId, customerName: call.user.fullName });
+  schedule(callId, env.CALL_MAX_MINUTES * 60 * 1000, () => finish(callId, { status: 'ENDED', reason: 'MAX_DURATION', endedBy: 'SYSTEM', fromStatuses: ['ACTIVE'] }));
+  return formatCall(call);
+}
+
+/** The customer declines a staff call. */
+async function rejectOutboundCall(userId, callId) {
+  const target = await prisma.callSession.findUnique({ where: { id: callId }, select: { userId: true, direction: true } });
+  if (!target || target.userId !== userId || target.direction !== 'OUTBOUND') throw new AppError('Call not found', 404);
+  const call = await finish(callId, { status: 'REJECTED', reason: 'DECLINED', endedBy: 'CUSTOMER', fromStatuses: ['RINGING'] });
+  if (!call) throw codedError('This call has already ended.', 409, 'CALL_UNAVAILABLE');
   return formatCall(call);
 }
 
@@ -209,7 +294,11 @@ async function rejectCall(admin, callId) {
 /** party: { kind: 'CUSTOMER'|'ADMIN', id } */
 async function loadForParty(party, callId) {
   const call = await prisma.callSession.findUnique({ where: { id: callId } });
-  const allowed = call && (party.kind === 'CUSTOMER' ? call.userId === party.id : call.adminId === party.id || (call.status === 'RINGING' && party.kind === 'ADMIN'));
+  const allowed =
+    call &&
+    (party.kind === 'CUSTOMER'
+      ? call.userId === party.id
+      : call.adminId === party.id || (call.status === 'RINGING' && call.direction === 'INBOUND'));
   if (!allowed) throw new AppError('Call not found', 404);
   return call;
 }
@@ -221,8 +310,9 @@ async function relaySignal(party, callId, { type, data }) {
 
   const call = await loadForParty(party, callId);
   if (call.status !== 'ACTIVE') throw codedError('This call is not active.', 409, 'CALL_NOT_ACTIVE');
-  // The customer makes the offer; staff answer. ICE flows both ways.
-  if ((type === 'offer' && party.kind !== 'CUSTOMER') || (type === 'answer' && party.kind !== 'ADMIN')) {
+  // Whoever placed the call makes the offer; the other side answers. ICE flows both ways.
+  const caller = callerSide(call);
+  if ((type === 'offer' && party.kind !== caller) || (type === 'answer' && party.kind === caller)) {
     throw new AppError('Unexpected signal for this side of the call', 400);
   }
   const to = party.kind === 'CUSTOMER' ? `admin:${call.adminId}` : `user:${call.userId}`;
@@ -233,14 +323,74 @@ async function relaySignal(party, callId, { type, data }) {
 async function endCall(party, callId, reason = 'HANGUP') {
   const call = await loadForParty(party, callId);
   if (!LIVE.includes(call.status)) return formatCall(call); // already over: idempotent
-  const status = call.status === 'RINGING' ? (party.kind === 'CUSTOMER' ? 'MISSED' : 'REJECTED') : 'ENDED';
+  // Hanging up while it rings: the caller cancelling is a missed call for
+  // the other side; the callee hanging up is a decline.
+  const isCaller = party.kind === callerSide(call);
+  const status = call.status === 'RINGING' ? (isCaller ? 'MISSED' : 'REJECTED') : 'ENDED';
   const cleanReason = /^[A-Z_]{2,40}$/.test(String(reason)) ? String(reason) : 'HANGUP';
   const ended = await finish(callId, {
     status,
-    reason: call.status === 'RINGING' && party.kind === 'CUSTOMER' ? 'CANCELLED_BY_CUSTOMER' : cleanReason,
+    reason: call.status === 'RINGING' && isCaller ? `CANCELLED_BY_${party.kind}` : cleanReason,
     endedBy: party.kind,
   });
   return formatCall(ended || call);
+}
+
+// ------------------------------------------------------------
+// Lost connections
+// ------------------------------------------------------------
+// If a participant's browser closes, crashes or loses the network, their
+// realtime stream drops. Give them a short grace period to reconnect (page
+// reload, brief signal loss), then end their live calls so nobody stays
+// "busy" on a dead call.
+const DISCONNECT_GRACE_MS = 20 * 1000;
+const graceTimers = new Map(); // channel -> timeout
+
+function handleChannelEmpty(channel, graceMs = DISCONNECT_GRACE_MS) {
+  const match = /^(user|admin):(.+)$/.exec(channel);
+  if (!match) return null;
+  clearTimeout(graceTimers.get(channel));
+  return new Promise((resolve) => {
+    const timer = setTimeout(async () => {
+      graceTimers.delete(channel);
+      if (realtime.subscriberCount(channel) > 0) return resolve(0); // they came back
+      let closed = 0;
+      try {
+        const where = match[1] === 'user' ? { userId: match[2] } : { adminId: match[2] };
+        const live = await prisma.callSession.findMany({ where: { ...where, status: { in: LIVE } }, select: { id: true, status: true } });
+        for (const c of live) {
+          const done = await finish(c.id, {
+            status: c.status === 'RINGING' ? 'MISSED' : 'ENDED',
+            reason: 'CONNECTION_LOST',
+            endedBy: match[1] === 'user' ? 'CUSTOMER' : 'ADMIN',
+            fromStatuses: [c.status],
+          });
+          if (done) closed += 1;
+        }
+      } catch (error) {
+        logger.warn(`[calls] could not close calls for ${channel}: ${error.message}`);
+      }
+      resolve(closed);
+    }, graceMs);
+    timer.unref?.();
+    graceTimers.set(channel, timer);
+  });
+}
+
+realtime.onChannelEmpty((channel) => {
+  handleChannelEmpty(channel);
+});
+
+/**
+ * Server start: call signalling lives in this process, so any call still
+ * marked live was cut off by the restart.
+ */
+async function closeCallsInterruptedByRestart() {
+  const result = await prisma.callSession.updateMany({
+    where: { status: { in: LIVE } },
+    data: { status: 'ENDED', endReason: 'SERVER_RESTART', endedBy: 'SYSTEM', endedAt: new Date() },
+  });
+  return result.count;
 }
 
 async function listCalls({ limit = 30 } = {}) {
@@ -253,4 +403,19 @@ async function listCalls({ limit = 30 } = {}) {
   return rows.map(formatCall);
 }
 
-module.exports = { callConfig, startCall, acceptCall, rejectCall, relaySignal, endCall, listCalls, sweepStale, MAX_SIGNAL_BYTES };
+module.exports = {
+  callConfig,
+  startCall,
+  acceptCall,
+  rejectCall,
+  startOutboundCall,
+  acceptOutboundCall,
+  rejectOutboundCall,
+  relaySignal,
+  endCall,
+  listCalls,
+  sweepStale,
+  closeCallsInterruptedByRestart,
+  handleChannelEmpty,
+  MAX_SIGNAL_BYTES,
+};

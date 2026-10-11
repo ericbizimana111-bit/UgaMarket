@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Bell, CheckCheck, CreditCard, MessageCircle, Package, ShieldCheck, Sparkles, Truck, Wrench } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCheck, CreditCard, MessageCircle, Package, PhoneMissed, ShieldCheck, Sparkles, Truck, Wrench } from 'lucide-react';
 import apiClient from '../../api/client';
 import { useLanguage } from '../../Context/LanguageContext';
 import { useRealtime, useRealtimeEvent } from '../../Context/RealtimeContext';
@@ -14,7 +14,8 @@ const TYPE_ICONS = {
   SERVICE_UPDATE: Wrench,
   NEW_MESSAGE: MessageCircle,
   SECURITY: ShieldCheck,
-  NEW_ARRIVALS: Sparkles
+  NEW_ARRIVALS: Sparkles,
+  MISSED_CALL: PhoneMissed
 };
 
 // Seconds the list must be on screen before everything counts as read.

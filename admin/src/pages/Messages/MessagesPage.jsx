@@ -1,10 +1,11 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, Check, CheckCheck, MessageCircle, Package, Phone, Search, Send, Wrench } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, MessageCircle, Package, Phone, PhoneCall, Search, Send, Wrench } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import StatusBadge from '../../components/ui/StatusBadge';
 import { useRealtime, useRealtimeEvent } from '../../context/RealtimeContext';
+import { useCalls } from '../../context/CallContext';
 import { formatDateTime, formatRelative, formatUGX } from '../../utils/format';
 import './MessagesPage.css';
 
@@ -53,6 +54,7 @@ export default function MessagesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
   const { refresh } = useRealtime();
+  const { callCustomer, active: activeCall } = useCalls();
   const [conversations, setConversations] = useState([]);
   const [listLoading, setListLoading] = useState(true);
   const [search, setSearch] = useState('');
@@ -245,7 +247,19 @@ export default function MessagesPage() {
                   )}
                   {customer?.email && <> · {customer.email}</>}
                 </span>
+                <small className={`thread__presence ${thread.customerOnline ? 'thread__presence--on' : ''}`}>
+                  {thread.customerOnline ? 'Online now — an in-app call will ring' : 'Not on UgaMarket right now'}
+                </small>
               </div>
+              <button
+                type="button"
+                className="btn btn--primary btn--sm thread__call"
+                onClick={() => callCustomer({ id: customer?.id, fullName: customer?.fullName, phone: customer?.phone })}
+                disabled={!customer?.id || Boolean(activeCall)}
+                title={thread.customerOnline ? 'Voice call this customer in the browser' : 'They are offline: they will get a missed-call notice'}
+              >
+                <PhoneCall size={15} aria-hidden="true" /> Call
+              </button>
             </header>
 
             <div className="thread__messages" ref={listRef}>

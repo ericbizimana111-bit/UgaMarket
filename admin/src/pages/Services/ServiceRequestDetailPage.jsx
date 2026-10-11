@@ -9,6 +9,7 @@ import StatusBadge from '../../components/ui/StatusBadge';
 import { DetailSkeleton } from '../../components/ui/loaders';
 import { ErrorState } from '../../components/ui/states';
 import { useRealtimeEvent } from '../../context/RealtimeContext';
+import CallCustomerButton from '../../components/calls/CallCustomerButton';
 import { directionsUrl, formatDateTime, formatKm, formatMinutes, formatUGX, getBookingStatusMeta } from '../../utils/format';
 import './Services.css';
 
@@ -293,6 +294,7 @@ export default function ServiceRequestDetailPage() {
             <Link to={`/messages?customer=${request.customer?.id}`} className="btn btn--secondary btn--sm btn--block" style={{ marginTop: 10 }}>
               <MessageCircle size={14} aria-hidden="true" /> Message customer
             </Link>
+            <CallCustomerButton customer={request.customer} style={{ marginTop: 8 }} />
           </section>
 
           <section className="panel panel-pad detail-block">

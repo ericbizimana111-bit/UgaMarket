@@ -122,6 +122,28 @@
   border-color: #dc2626;
 }
 
+.um-call__btn--answer {
+  color: #fff;
+  background: #16a34a;
+  border-color: #16a34a;
+  animation: um-call-wiggle 1.2s ease-in-out infinite;
+}
+
+.um-call__btn--answer:hover {
+  background: #15803d;
+}
+
+@keyframes um-call-wiggle {
+  0%, 60%, 100% { transform: rotate(0); }
+  70% { transform: rotate(-12deg); }
+  80% { transform: rotate(12deg); }
+  90% { transform: rotate(-8deg); }
+}
+
+.um-call--incoming {
+  border-color: #16a34a;
+}
+
 .um-call__btn--hangup:hover {
   background: #b91c1c;
 }
@@ -136,6 +158,7 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
+  .um-call__btn--answer,
   .um-call,
   .um-call__avatar--pulse::after {
     animation: none;

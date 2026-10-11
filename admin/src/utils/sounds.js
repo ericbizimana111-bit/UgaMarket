@@ -114,3 +114,14 @@ export function startRingtone() {
   const timer = setInterval(() => play(ring), 2600);
   return () => clearInterval(timer);
 }
+
+/** Looping ringback while an outgoing call rings at the customer. Returns stop(). */
+export function startRingback() {
+  const tone = [
+    [440, 0, 1.0, 'sine', 0.12],
+    [480, 0, 1.0, 'sine', 0.12],
+  ];
+  play(tone);
+  const timer = setInterval(() => play(tone), 3000);
+  return () => clearInterval(timer);
+}

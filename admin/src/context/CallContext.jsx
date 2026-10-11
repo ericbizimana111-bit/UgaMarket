@@ -3,38 +3,48 @@ import api from '../services/api';
 import { useAuth } from './AuthContext';
 import { useRealtimeEvent } from './RealtimeContext';
 import { useToast } from '../components/feedback/Toast';
-import { startRingtone } from '../utils/sounds';
+import { startRingback, startRingtone } from '../utils/sounds';
 
 /**
- * Staff side of customer voice calls (WebRTC audio).
+ * Staff side of voice calls (WebRTC audio), both directions:
  *
- *  call:incoming  -> every signed-in console rings (ringtone + desktop alert)
- *  Answer         -> microphone permission, POST /admin/calls/:id/accept
- *                    (the first staff member to answer wins; the others'
- *                    consoles stop ringing on call:taken)
- *  The customer sends the offer; we answer; ICE candidates flow both ways
- *  through the API, which only relays between the two call participants.
+ *  Customer calls in:  call:incoming -> every console rings -> Answer
+ *                      (POST /admin/calls/:id/accept; first answer wins,
+ *                      others stop on call:taken) -> customer sends the
+ *                      offer, WE answer.
+ *  Staff call out:     callCustomer() -> POST /admin/calls (the customer's
+ *                      UgaMarket rings) -> call:accepted -> WE send the
+ *                      offer, the customer answers.
+ *
+ * ICE candidates flow both ways through the API, which relays only between
+ * the two participants of the call.
  */
 const CallContext = createContext(null);
 
 const AUDIO = { audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }, video: false };
 
+const supported = () => window.isSecureContext && Boolean(navigator.mediaDevices?.getUserMedia) && typeof window.RTCPeerConnection !== 'undefined';
+
 export function CallProvider({ children }) {
   const { admin, isAuthenticated } = useAuth();
   const { showToast } = useToast();
-  const [ringing, setRinging] = useState([]); // [{ callId, customer, createdAt }]
-  const [active, setActive] = useState(null); // { callId, customer, state: 'connecting'|'connected', since }
+  const [ringing, setRinging] = useState([]); // incoming: [{ callId, customer, createdAt }]
+  // { callId, customer, role: 'caller'|'callee', state: 'calling'|'connecting'|'connected', since }
+  const [active, setActive] = useState(null);
   const [muted, setMuted] = useState(false);
 
   const pcRef = useRef(null);
   const streamRef = useRef(null);
   const callIdRef = useRef(null);
+  const roleRef = useRef(null);
+  const configRef = useRef({ iceServers: [] });
   const pendingIce = useRef([]);
   const remoteSet = useRef(false);
   const audioRef = useRef(null);
   const stopRing = useRef(null);
+  const stopRingback = useRef(null);
 
-  // Ringtone plays while anything is ringing and we are not already on a call.
+  // Incoming ringtone while anything rings and we are not on a call.
   useEffect(() => {
     if (ringing.length > 0 && !active) {
       if (!stopRing.current) stopRing.current = startRingtone();
@@ -44,7 +54,24 @@ export function CallProvider({ children }) {
     }
   }, [ringing.length, active]);
 
-  useEffect(() => () => stopRing.current?.(), []);
+  // Ringback while our outgoing call rings at the customer.
+  const calling = active?.state === 'calling';
+  useEffect(() => {
+    if (calling) {
+      if (!stopRingback.current) stopRingback.current = startRingback();
+    } else if (stopRingback.current) {
+      stopRingback.current();
+      stopRingback.current = null;
+    }
+  }, [calling]);
+
+  useEffect(
+    () => () => {
+      stopRing.current?.();
+      stopRingback.current?.();
+    },
+    [],
+  );
 
   /** Stop the microphone and close the connection (no state updates). */
   const releaseMedia = useCallback(() => {
@@ -59,6 +86,7 @@ export function CallProvider({ children }) {
     pendingIce.current = [];
     remoteSet.current = false;
     callIdRef.current = null;
+    roleRef.current = null;
     if (audioRef.current) audioRef.current.srcObject = null;
   }, []);
 
@@ -89,12 +117,81 @@ export function CallProvider({ children }) {
     return api.post(`/admin/calls/${id}/signal`, { type, data }).catch(() => {});
   }, []);
 
+  const hangUp = useCallback(() => {
+    const id = callIdRef.current;
+    if (id) api.post(`/admin/calls/${id}/end`, { reason: 'HANGUP' }).catch(() => {});
+    cleanup();
+  }, [cleanup]);
+
+  /** Peer connection shared by both directions. */
+  const createPeer = useCallback(() => {
+    const pc = new RTCPeerConnection({ iceServers: configRef.current.iceServers || [] });
+    pcRef.current = pc;
+    streamRef.current.getTracks().forEach((track) => pc.addTrack(track, streamRef.current));
+    pc.onicecandidate = (e) => e.candidate && signal('ice', e.candidate.toJSON ? e.candidate.toJSON() : e.candidate);
+    pc.ontrack = (e) => {
+      const el = audioRef.current;
+      if (!el) return;
+      el.srcObject = e.streams[0] || new MediaStream([e.track]);
+      el.play?.().catch(() => {});
+    };
+    const onState = () => {
+      const s = pc.connectionState || pc.iceConnectionState;
+      if (s === 'connected' || s === 'completed') {
+        setActive((a) => (a && a.state !== 'connected' ? { ...a, state: 'connected', since: Date.now() } : a));
+        audioRef.current?.play?.().catch(() => {});
+      } else if (s === 'failed') {
+        showToast('The call connection failed. Check the internet connection (a TURN server may be needed).', { type: 'error' });
+        hangUp();
+      }
+    };
+    pc.onconnectionstatechange = onState;
+    pc.oniceconnectionstatechange = onState;
+    return pc;
+  }, [signal, hangUp, showToast]);
+
+  const flushIce = async (pc) => {
+    remoteSet.current = true;
+    for (const c of pendingIce.current) await pc.addIceCandidate(c).catch(() => {});
+    pendingIce.current = [];
+  };
+
+  const getMicrophone = async () => {
+    if (!supported()) {
+      showToast('This browser cannot make calls. Use an up-to-date Chrome, Edge, Firefox or Safari over https.', { type: 'error' });
+      return false;
+    }
+    try {
+      streamRef.current = await navigator.mediaDevices.getUserMedia(AUDIO);
+      return true;
+    } catch {
+      showToast('Microphone access is blocked. Allow the microphone for this site and try again.', { type: 'error' });
+      return false;
+    }
+  };
+
+  // Closing or reloading the console tab ends the call cleanly.
+  useEffect(() => {
+    const onUnload = () => {
+      const id = callIdRef.current;
+      if (id) api.post(`/admin/calls/${id}/end`, { reason: 'PAGE_CLOSED' }).catch(() => {});
+    };
+    window.addEventListener('pagehide', onUnload);
+    return () => window.removeEventListener('pagehide', onUnload);
+  }, []);
+
+  // ---------------- Customer calls in ----------------
   useRealtimeEvent('call:incoming', (data) => {
     if (!data?.callId) return;
     setRinging((prev) => (prev.some((c) => c.callId === data.callId) ? prev : [...prev, data]));
     if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
       try {
-        const n = new Notification(`Incoming call: ${data.customer?.fullName || 'Customer'}`, { body: 'Open the console to answer.', tag: data.callId, icon: '/logo.png', requireInteraction: true });
+        const n = new Notification(`Incoming call: ${data.customer?.fullName || 'Customer'}`, {
+          body: 'Open the console to answer.',
+          tag: data.callId,
+          icon: '/logo.png',
+          requireInteraction: true,
+        });
         n.onclick = () => window.focus();
       } catch {
         /* needs a service worker on some browsers */
@@ -103,31 +200,94 @@ export function CallProvider({ children }) {
   });
 
   useRealtimeEvent('call:taken', (data) => {
-    if (!data) return;
-    setRinging((prev) => prev.filter((c) => c.callId !== data.callId));
+    if (data) setRinging((prev) => prev.filter((c) => c.callId !== data.callId));
   });
 
-  useRealtimeEvent('call:ended', (data) => {
-    if (!data) return;
-    setRinging((prev) => prev.filter((c) => c.callId !== data.callId));
-    if (data.callId === callIdRef.current) {
-      showToast('The call has ended.', { type: 'info' });
-      cleanup();
+  const answer = useCallback(
+    async (call) => {
+      if (active) return;
+      if (!(await getMicrophone())) return;
+      // The peer connection must exist before the customer's offer arrives.
+      callIdRef.current = call.callId;
+      roleRef.current = 'callee';
+      try {
+        configRef.current = (await api.get('/admin/calls/config'))?.data || { iceServers: [] };
+        createPeer();
+        setActive({ callId: call.callId, customer: call.customer, role: 'callee', state: 'connecting', since: null });
+        setRinging((prev) => prev.filter((c) => c.callId !== call.callId));
+        await api.post(`/admin/calls/${call.callId}/accept`);
+      } catch (err) {
+        showToast(err?.message || 'Could not answer the call.', { type: 'error' });
+        setRinging((prev) => prev.filter((c) => c.callId !== call.callId));
+        cleanup();
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [active, cleanup, createPeer, showToast],
+  );
+
+  const decline = useCallback(async (call) => {
+    setRinging((prev) => prev.filter((c) => c.callId !== call.callId));
+    try {
+      await api.post(`/admin/calls/${call.callId}/reject`);
+    } catch {
+      /* already answered elsewhere or ended */
+    }
+  }, []);
+
+  // ---------------- Staff call a customer ----------------
+  const callCustomer = useCallback(
+    async (customer) => {
+      if (!customer?.id) return;
+      if (active || callIdRef.current) {
+        showToast('Finish your current call first.', { type: 'warning' });
+        return;
+      }
+      if (!(await getMicrophone())) return;
+      try {
+        const res = await api.post('/admin/calls', { userId: customer.id });
+        callIdRef.current = res?.data?.call?.id;
+        roleRef.current = 'caller';
+        configRef.current = res?.data?.config || { iceServers: [] };
+        setActive({ callId: callIdRef.current, customer, role: 'caller', state: 'calling', since: null });
+      } catch (err) {
+        releaseMedia();
+        showToast(err?.message || 'Could not call the customer.', { type: err?.status === 409 ? 'warning' : 'error', duration: 9000 });
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [active, releaseMedia, showToast],
+  );
+
+  // The customer answered our call: we send the offer.
+  useRealtimeEvent('call:accepted', async (data) => {
+    if (!data || data.callId !== callIdRef.current || roleRef.current !== 'caller') return;
+    setActive((a) => (a ? { ...a, state: 'connecting' } : a));
+    try {
+      const pc = createPeer();
+      const offer = await pc.createOffer({ offerToReceiveAudio: true });
+      await pc.setLocalDescription(offer);
+      await signal('offer', { type: offer.type, sdp: offer.sdp });
+    } catch {
+      showToast('The call could not connect.', { type: 'error' });
+      hangUp();
     }
   });
 
+  // ---------------- Both directions ----------------
   useRealtimeEvent('call:signal', async (data) => {
     const pc = pcRef.current;
     if (!data || data.callId !== callIdRef.current || !pc) return;
     try {
-      if (data.type === 'offer') {
+      if (data.type === 'offer' && roleRef.current === 'callee') {
         await pc.setRemoteDescription(data.data);
-        remoteSet.current = true;
-        for (const c of pendingIce.current) await pc.addIceCandidate(c).catch(() => {});
-        pendingIce.current = [];
-        const answer = await pc.createAnswer();
-        await pc.setLocalDescription(answer);
-        await signal('answer', { type: answer.type, sdp: answer.sdp });
+        await flushIce(pc);
+        const reply = await pc.createAnswer();
+        await pc.setLocalDescription(reply);
+        await signal('answer', { type: reply.type, sdp: reply.sdp });
+      } else if (data.type === 'answer' && roleRef.current === 'caller') {
+        await pc.setRemoteDescription(data.data);
+        await flushIce(pc);
       } else if (data.type === 'ice' && data.data) {
         if (remoteSet.current) await pc.addIceCandidate(data.data).catch(() => {});
         else pendingIce.current.push(data.data);
@@ -137,71 +297,20 @@ export function CallProvider({ children }) {
     }
   });
 
-  const answer = useCallback(
-    async (call) => {
-      if (active) return;
-      if (!window.isSecureContext || !navigator.mediaDevices?.getUserMedia || typeof window.RTCPeerConnection === 'undefined') {
-        showToast('This browser cannot take calls. Use an up-to-date Chrome, Edge, Firefox or Safari over https.', { type: 'error' });
-        return;
-      }
-      try {
-        streamRef.current = await navigator.mediaDevices.getUserMedia(AUDIO);
-      } catch {
-        showToast('Microphone access is blocked. Allow the microphone for this site and try again.', { type: 'error' });
-        return;
-      }
-
-      // The peer connection must exist before the customer's offer arrives.
-      callIdRef.current = call.callId;
-      try {
-        const config = (await api.get('/admin/calls/config'))?.data || {};
-        const pc = new RTCPeerConnection({ iceServers: config.iceServers || [] });
-        pcRef.current = pc;
-        streamRef.current.getTracks().forEach((track) => pc.addTrack(track, streamRef.current));
-        pc.onicecandidate = (e) => e.candidate && signal('ice', e.candidate.toJSON ? e.candidate.toJSON() : e.candidate);
-        pc.ontrack = (e) => {
-          if (audioRef.current) {
-            audioRef.current.srcObject = e.streams[0];
-            audioRef.current.play?.().catch(() => {});
-          }
-        };
-        pc.onconnectionstatechange = () => {
-          if (pc.connectionState === 'connected') setActive((a) => (a ? { ...a, state: 'connected', since: Date.now() } : a));
-          if (pc.connectionState === 'failed') {
-            showToast('The call connection failed.', { type: 'error' });
-            api.post(`/admin/calls/${call.callId}/end`, { reason: 'CONNECTION_FAILED' }).catch(() => {});
-            cleanup();
-          }
-        };
-        setActive({ callId: call.callId, customer: call.customer, state: 'connecting', since: null });
-        setRinging((prev) => prev.filter((c) => c.callId !== call.callId));
-        await api.post(`/admin/calls/${call.callId}/accept`);
-      } catch (err) {
-        showToast(err?.message || 'Could not answer the call.', { type: 'error' });
-        setRinging((prev) => prev.filter((c) => c.callId !== call.callId));
-        cleanup();
-      }
-    },
-    [active, cleanup, showToast, signal],
-  );
-
-  const decline = useCallback(
-    async (call) => {
-      setRinging((prev) => prev.filter((c) => c.callId !== call.callId));
-      try {
-        await api.post(`/admin/calls/${call.callId}/reject`);
-      } catch {
-        /* already answered elsewhere or ended */
-      }
-    },
-    [],
-  );
-
-  const hangUp = useCallback(() => {
-    const id = callIdRef.current;
-    if (id) api.post(`/admin/calls/${id}/end`, { reason: 'HANGUP' }).catch(() => {});
+  useRealtimeEvent('call:ended', (data) => {
+    if (!data) return;
+    setRinging((prev) => prev.filter((c) => c.callId !== data.callId));
+    if (data.callId !== callIdRef.current) return;
+    const outgoing = roleRef.current === 'caller';
+    const message =
+      outgoing && data.status === 'REJECTED'
+        ? 'The customer declined the call.'
+        : outgoing && data.status === 'MISSED'
+          ? 'No answer. The customer has been told you tried to call.'
+          : 'The call has ended.';
+    showToast(message, { type: 'info' });
     cleanup();
-  }, [cleanup]);
+  });
 
   const toggleMute = useCallback(() => {
     const track = streamRef.current?.getAudioTracks?.()[0];
@@ -211,14 +320,14 @@ export function CallProvider({ children }) {
   }, []);
 
   const value = useMemo(
-    () => ({ ringing, active, muted, answer, decline, hangUp, toggleMute, me: admin?.id }),
-    [ringing, active, muted, answer, decline, hangUp, toggleMute, admin?.id],
+    () => ({ ringing, active, muted, answer, decline, callCustomer, hangUp, toggleMute, me: admin?.id }),
+    [ringing, active, muted, answer, decline, callCustomer, hangUp, toggleMute, admin?.id],
   );
 
   return (
     <CallContext.Provider value={value}>
       {children}
-      <audio ref={audioRef} autoPlay playsInline hidden />
+      <audio ref={audioRef} autoPlay playsInline data-testid="call-remote-audio" style={{ display: 'none' }} />
     </CallContext.Provider>
   );
 }
@@ -231,6 +340,7 @@ export function useCalls() {
       muted: false,
       answer: () => {},
       decline: () => {},
+      callCustomer: () => {},
       hangUp: () => {},
       toggleMute: () => {},
     }

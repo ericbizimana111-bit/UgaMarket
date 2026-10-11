@@ -285,6 +285,8 @@ async function getConversationForAdmin(conversationId, opts = {}) {
   return {
     conversation: formatConversation(conversation),
     ...page,
+    // Whether the customer has UgaMarket open (an in-app call can ring).
+    customerOnline: realtime.subscriberCount(`user:${conversation.userId}`) > 0,
     context: {
       recentOrders,
       recentBookings: recentBookings.map((b) => ({ ...b, serviceName: b.service.nameEn, service: undefined })),

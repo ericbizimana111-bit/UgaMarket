@@ -200,6 +200,97 @@ describe('Communications & consent', () => {
       expect(log.body.data.calls.some((x) => x.id === callId && x.status === 'ENDED')).toBe(true);
     });
 
+    test('staff can call a customer: ring -> customer answers -> staff offer, customer answer', async () => {
+      const c = await makeCustomer('Called Customer');
+      const other = await makeCustomer('Other Customer');
+      online([`user:${c.id}`]);
+      const publish = jest.spyOn(realtime, 'publish');
+
+      const start = await request(app).post('/api/admin/calls').set('Authorization', `Bearer ${adminToken}`).send({ userId: c.id });
+      expect(start.statusCode).toBe(201);
+      const callId = start.body.data.call.id;
+      expect(start.body.data.call.direction).toBe('OUTBOUND');
+      expect(publish).toHaveBeenCalledWith(`user:${c.id}`, 'call:incoming', expect.objectContaining({ callId }));
+
+      // Staff cannot place a second call at the same time; another customer cannot answer it.
+      await request(app).post('/api/admin/calls').set('Authorization', `Bearer ${adminToken}`).send({ userId: other.id }).expect(409);
+      await request(app).post(`/api/calls/${callId}/accept`).set('Authorization', `Bearer ${other.token}`).expect(409);
+
+      const accept = await request(app).post(`/api/calls/${callId}/accept`).set('Authorization', `Bearer ${c.token}`);
+      expect(accept.statusCode).toBe(200);
+      expect(accept.body.data.call.status).toBe('ACTIVE');
+      expect(publish).toHaveBeenCalledWith(`admin:${adminId}`, 'call:accepted', expect.objectContaining({ callId }));
+
+      // Staff placed the call, so staff send the offer and the customer answers.
+      await request(app).post(`/api/calls/${callId}/signal`).set('Authorization', `Bearer ${c.token}`).send({ type: 'offer', data: {} }).expect(400);
+      await request(app)
+        .post(`/api/admin/calls/${callId}/signal`)
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({ type: 'offer', data: { type: 'offer', sdp: 'v=0' } })
+        .expect(200);
+      expect(publish).toHaveBeenCalledWith(`user:${c.id}`, 'call:signal', expect.objectContaining({ type: 'offer' }));
+      await request(app)
+        .post(`/api/calls/${callId}/signal`)
+        .set('Authorization', `Bearer ${c.token}`)
+        .send({ type: 'answer', data: { type: 'answer', sdp: 'v=0' } })
+        .expect(200);
+      expect(publish).toHaveBeenCalledWith(`admin:${adminId}`, 'call:signal', expect.objectContaining({ type: 'answer' }));
+
+      const end = await request(app).post(`/api/admin/calls/${callId}/end`).set('Authorization', `Bearer ${adminToken}`).send({});
+      expect(end.body.data.call.status).toBe('ENDED');
+    });
+
+    test('calling a customer who is offline logs a missed call and tells them', async () => {
+      const c = await makeCustomer('Offline Callee');
+      online([]);
+      const res = await request(app).post('/api/admin/calls').set('Authorization', `Bearer ${adminToken}`).send({ userId: c.id });
+      expect(res.statusCode).toBe(409);
+      expect(res.body.errors[0].code).toBe('CUSTOMER_OFFLINE');
+      const note = await prisma.notification.findFirst({ where: { userId: c.id, type: 'MISSED_CALL' } });
+      expect(note).not.toBeNull();
+    });
+
+    test('a customer can decline a staff call', async () => {
+      const c = await makeCustomer('Declining Customer');
+      online([`user:${c.id}`]);
+      const start = await request(app).post('/api/admin/calls').set('Authorization', `Bearer ${adminToken}`).send({ userId: c.id }).expect(201);
+      const reject = await request(app).post(`/api/calls/${start.body.data.call.id}/reject`).set('Authorization', `Bearer ${c.token}`);
+      expect(reject.body.data.call.status).toBe('REJECTED');
+    });
+
+    test('a call whose participant disconnected (browser closed) is ended, so nobody stays busy', async () => {
+      const callService = require('../src/services/call.service');
+      const c = await makeCustomer('Vanishing Caller');
+      online(['admins']);
+      const start = await request(app).post('/api/calls').set('Authorization', `Bearer ${c.token}`).expect(201);
+      await request(app).post(`/api/admin/calls/${start.body.data.call.id}/accept`).set('Authorization', `Bearer ${adminToken}`).expect(200);
+
+      // Staff browser closes and does not come back within the grace period.
+      online([]);
+      const closed = await callService.handleChannelEmpty(`admin:${adminId}`, 10);
+      expect(closed).toBe(1);
+      const call = await prisma.callSession.findUnique({ where: { id: start.body.data.call.id } });
+      expect(call.status).toBe('ENDED');
+      expect(call.endReason).toBe('CONNECTION_LOST');
+
+      // The staff member can place a new call straight away.
+      const next = await makeCustomer('Next Callee');
+      online([`user:${next.id}`]);
+      await request(app).post('/api/admin/calls').set('Authorization', `Bearer ${adminToken}`).send({ userId: next.id }).expect(201);
+      online([]);
+      await callService.handleChannelEmpty(`user:${next.id}`, 10);
+    });
+
+    test('a reconnect within the grace period keeps the call', async () => {
+      const callService = require('../src/services/call.service');
+      const c = await makeCustomer('Reloading Caller');
+      online(['admins', `user:${c.id}`]);
+      const start = await request(app).post('/api/calls').set('Authorization', `Bearer ${c.token}`).expect(201);
+      expect(await callService.handleChannelEmpty(`user:${c.id}`, 10)).toBe(0);
+      expect((await prisma.callSession.findUnique({ where: { id: start.body.data.call.id } })).status).toBe('RINGING');
+      await request(app).post(`/api/calls/${start.body.data.call.id}/end`).set('Authorization', `Bearer ${c.token}`).send({});
+    });
+
     test('a customer cancelling while it rings is a missed call', async () => {
       const c = await makeCustomer('Cancel Caller');
       online(['admins']);

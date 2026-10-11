@@ -52,6 +52,23 @@ customer.post(
   })
 );
 
+// Answer / decline a call from UgaMarket staff
+customer.post(
+  '/:id/accept',
+  validateRequest({ params: idParams }),
+  handle(async (req, res) => {
+    res.json({ success: true, data: { call: await callService.acceptOutboundCall(req.user.id, req.params.id), config: callService.callConfig() } });
+  })
+);
+
+customer.post(
+  '/:id/reject',
+  validateRequest({ params: idParams }),
+  handle(async (req, res) => {
+    res.json({ success: true, data: { call: await callService.rejectOutboundCall(req.user.id, req.params.id) } });
+  })
+);
+
 customer.post(
   '/:id/signal',
   signalLimiter,
@@ -83,6 +100,16 @@ admin.get(
   '/',
   handle(async (req, res) => {
     res.json({ success: true, data: { calls: await callService.listCalls({ limit: req.query.limit }) } });
+  })
+);
+
+// Call a customer (they must have UgaMarket open)
+admin.post(
+  '/',
+  validateRequest({ body: z.object({ userId: uuid }) }),
+  handle(async (req, res) => {
+    const call = await callService.startOutboundCall(req.admin, req.body.userId);
+    res.status(201).json({ success: true, data: { call, config: callService.callConfig() } });
   })
 );
 

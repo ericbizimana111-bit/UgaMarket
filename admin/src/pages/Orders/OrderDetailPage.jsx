@@ -5,6 +5,7 @@ import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import AdminMap from '../../components/map/AdminMap';
 import { useRealtimeEvent } from '../../context/RealtimeContext';
+import CallCustomerButton from '../../components/calls/CallCustomerButton';
 import { directionsUrl, formatUGX, formatDateTime, formatKm, formatMinutes } from '../../utils/format';
 import StatusBadge from '../../components/ui/StatusBadge';
 import ConfirmDialog from '../../components/ui/ConfirmDialog';
@@ -400,6 +401,7 @@ export default function OrderDetailPage() {
             <Link to={`/messages?customer=${order.customer?.id}`} className="btn btn--secondary btn--sm btn--block" style={{ marginTop: 10 }}>
               <MessageCircle size={14} aria-hidden="true" /> Message customer
             </Link>
+            <CallCustomerButton customer={order.customer} style={{ marginTop: 8 }} />
           </section>
 
           {order.delivery && (

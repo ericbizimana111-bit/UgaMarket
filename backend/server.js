@@ -16,8 +16,11 @@ function startBackgroundJobs() {
   const callService = require('./src/services/call.service');
   const newsletter = require('./src/services/newsletter.service');
 
-  // Close calls left ringing/active by a previous process.
-  callService.sweepStale().catch((error) => logger.warn('[jobs] call sweep failed:', error.message));
+  // Calls cannot survive a restart (their signalling lived in the old process).
+  callService
+    .closeCallsInterruptedByRestart()
+    .then((n) => n > 0 && logger.info(`[jobs] closed ${n} call(s) interrupted by the restart`))
+    .catch((error) => logger.warn('[jobs] call cleanup failed:', error.message));
 
   if (env.NEW_ARRIVALS_DIGEST_MINUTES > 0) {
     const run = () =>

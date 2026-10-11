@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Headset, Mic, MicOff, PhoneOff, X } from 'lucide-react';
+import { Headset, Mic, MicOff, Phone, PhoneOff, X } from 'lucide-react';
 import { useCall } from '../../Context/CallContext';
 import { useLanguage } from '../../Context/LanguageContext';
 import './Call.css';
@@ -15,6 +15,8 @@ const ERROR_KEYS = {
   CALL_RATE_LIMITED: 'callErrRateLimited',
   CALL_IN_PROGRESS: 'callErrInProgress',
   CONNECTION_FAILED: 'callErrConnection',
+  MISSED_INCOMING: 'callErrMissedIncoming',
+  CALL_GONE: 'callErrGone',
   FAILED: 'callErrGeneric'
 };
 
@@ -32,7 +34,7 @@ function useElapsed(since) {
 
 /** Floating call panel, shown on every page while a call is in progress. */
 const CallOverlay = () => {
-  const { state, error, agentName, muted, connectedAt, hangUp, toggleMute, dismiss } = useCall();
+  const { state, error, agentName, muted, connectedAt, hangUp, toggleMute, dismiss, acceptIncoming, declineIncoming } = useCall();
   const { t } = useLanguage();
   const elapsed = useElapsed(connectedAt);
 
@@ -41,12 +43,13 @@ const CallOverlay = () => {
   const status = {
     requesting: t('callAllowMic'),
     ringing: t('callRinging'),
+    incoming: t('callIncoming'),
     connecting: t('callConnecting'),
     connected: elapsed,
     ended: error ? t(ERROR_KEYS[error.code] || 'callErrGeneric') : t('callEnded')
   }[state];
 
-  const live = state === 'ringing' || state === 'connecting' || state === 'connected';
+  const live = state === 'ringing' || state === 'incoming' || state === 'connecting' || state === 'connected';
 
   return (
     <div className={`um-call um-call--${state}`} role="dialog" aria-live="polite" aria-label={t('callSupport')}>
@@ -54,7 +57,13 @@ const CallOverlay = () => {
         <Headset size={22} />
       </span>
       <div className="um-call__text">
-        <strong>{agentName ? t('callWithAgent', { name: agentName }) : t('callUgaMarketSupport')}</strong>
+        <strong>
+          {state === 'incoming'
+            ? t('callIncomingFrom', { name: agentName || 'UgaMarket' })
+            : agentName
+              ? t('callWithAgent', { name: agentName })
+              : t('callUgaMarketSupport')}
+        </strong>
         <span className="um-call__status">{status}</span>
         {state === 'ended' && error && (error.code === 'NO_AGENT_ONLINE' || error.code === 'NO_ANSWER' || error.code === 'BUSY') && (
           <Link to="/account/messages" className="um-call__link" onClick={dismiss}>
@@ -74,7 +83,16 @@ const CallOverlay = () => {
             {muted ? <MicOff size={20} aria-hidden="true" /> : <Mic size={20} aria-hidden="true" />}
           </button>
         )}
-        {state === 'ended' ? (
+        {state === 'incoming' ? (
+          <>
+            <button type="button" className="um-call__btn um-call__btn--hangup" onClick={declineIncoming} aria-label={t('callDecline')} title={t('callDecline')}>
+              <PhoneOff size={20} aria-hidden="true" />
+            </button>
+            <button type="button" className="um-call__btn um-call__btn--answer" onClick={acceptIncoming} aria-label={t('callAccept')} title={t('callAccept')}>
+              <Phone size={20} aria-hidden="true" />
+            </button>
+          </>
+        ) : state === 'ended' ? (
           <button type="button" className="um-call__btn" onClick={dismiss} aria-label={t('close')}>
             <X size={20} aria-hidden="true" />
           </button>

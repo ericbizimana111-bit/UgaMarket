@@ -984,16 +984,23 @@ enum CallStatus {
   FAILED
 }
 
+// INBOUND: the customer called the store. OUTBOUND: staff called the customer.
+enum CallDirection {
+  INBOUND
+  OUTBOUND
+}
+
 model CallSession {
-  id         String     @id @default(uuid()) @db.Uuid
-  userId     String     @map("user_id") @db.Uuid
-  adminId    String?    @map("admin_id") @db.Uuid
-  status     CallStatus @default(RINGING)
-  endReason  String?    @map("end_reason") @db.VarChar(40)
-  endedBy    String?    @map("ended_by") @db.VarChar(10)
-  answeredAt DateTime?  @map("answered_at")
-  endedAt    DateTime?  @map("ended_at")
-  createdAt  DateTime   @default(now()) @map("created_at")
+  id         String        @id @default(uuid()) @db.Uuid
+  userId     String        @map("user_id") @db.Uuid
+  adminId    String?       @map("admin_id") @db.Uuid
+  direction  CallDirection @default(INBOUND)
+  status     CallStatus    @default(RINGING)
+  endReason  String?       @map("end_reason") @db.VarChar(40)
+  endedBy    String?       @map("ended_by") @db.VarChar(10)
+  answeredAt DateTime?     @map("answered_at")
+  endedAt    DateTime?     @map("ended_at")
+  createdAt  DateTime      @default(now()) @map("created_at")
 
   user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
   admin Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)

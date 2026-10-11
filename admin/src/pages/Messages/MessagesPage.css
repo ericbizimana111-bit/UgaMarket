@@ -377,3 +377,33 @@
     display: inline-flex;
   }
 }
+
+.thread__call {
+  margin-left: auto;
+  flex: 0 0 auto;
+}
+
+.thread__presence {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.thread__presence::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  background: var(--border-strong);
+  border-radius: 50%;
+}
+
+.thread__presence--on {
+  color: var(--success);
+  font-weight: 700;
+}
+
+.thread__presence--on::before {
+  background: var(--success);
+}
