@@ -95,9 +95,57 @@ const envSchema = z.object({
   // Google ID tokens are only accepted when issued for this client. Empty
   // disables Google sign-in (the endpoint answers 503).
   GOOGLE_CLIENT_ID: z.string().trim().default(''),
+
+  // ── Email + SMS delivery (verification codes, newsletter) ──
+  // LOG prints messages to the console in development only; in production a
+  // real provider is required for codes to reach customers.
+  EMAIL_PROVIDER: z.enum(['SMTP', 'RESEND', 'LOG']).default('LOG'),
+  EMAIL_FROM: z.string().trim().default(''), // e.g. "UgaMarket <no-reply@ugamarket.ug>"
+  SMTP_HOST: z.string().trim().default(''),
+  SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
+  SMTP_SECURE: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true' || v === '1'),
+  SMTP_USER: z.string().default(''),
+  SMTP_PASS: z.string().default(''),
+  RESEND_API_KEY: z.string().default(''),
+  SMS_PROVIDER: z.enum(['AFRICASTALKING', 'LOG']).default('LOG'),
+  AT_USERNAME: z.string().trim().default(''), // "sandbox" uses the AT sandbox
+  AT_API_KEY: z.string().default(''),
+  AT_SENDER_ID: z.string().trim().default(''), // optional approved alphanumeric sender
+  // Shared secret appended to the Africa's Talking delivery-report callback
+  // URL (?token=...). Empty disables the callback endpoint.
+  SMS_DELIVERY_REPORT_TOKEN: z.string().default(''),
+
+  // ── One-time codes ──
+  // Pepper for the keyed code hash; defaults to a key derived from JWT_SECRET.
+  OTP_SECRET: z.string().default(''),
+  OTP_TTL_MINUTES: z.coerce.number().int().min(2).max(30).default(10),
+  OTP_MAX_ATTEMPTS: z.coerce.number().int().min(3).max(10).default(5),
+  OTP_RESEND_COOLDOWN_SECONDS: z.coerce.number().int().min(15).max(600).default(60),
+  OTP_MAX_SENDS_PER_HOUR: z.coerce.number().int().min(2).max(30).default(5),
+  // New accounts must prove ownership of their phone (SMS) or email first.
+  SIGNUP_VERIFICATION_REQUIRED: z
+    .string()
+    .default('true')
+    .transform((v) => v !== 'false' && v !== '0'),
+
+  // ── Voice calls (WebRTC) ──
+  // STUN finds the public address; TURN relays audio when a direct path is
+  // impossible (common on mobile networks). Comma-separated URLs.
+  STUN_URLS: z.string().default('stun:stun.l.google.com:19302,stun:stun1.l.google.com:19302'),
+  TURN_URLS: z.string().default(''),
+  TURN_USERNAME: z.string().default(''),
+  TURN_CREDENTIAL: z.string().default(''),
+  CALL_RING_TIMEOUT_SECONDS: z.coerce.number().int().min(15).max(120).default(45),
+  CALL_MAX_MINUTES: z.coerce.number().int().min(1).max(240).default(30),
+
+  // ── Newsletter: minutes between "new arrivals" digest runs (0 = off) ──
+  NEW_ARRIVALS_DIGEST_MINUTES: z.coerce.number().int().min(0).max(10080).default(60),
 });
 
-const { validateProductionConfig } = require('./envValidation');
+const { validateProductionConfig, productionWarnings } = require('./envValidation');
 
 const parsed = envSchema.safeParse(process.env);
 
@@ -122,6 +170,9 @@ if (parsed.data.NODE_ENV === 'production') {
     console.error('Fix the environment configuration and restart. Secret values are never shown.');
     process.exit(1);
   }
+  for (const warning of productionWarnings(parsed.data)) {
+    console.warn(`⚠️  ${warning}`);
+  }
 }
 
 // External providers default to off under test so the suite never reaches
@@ -137,6 +188,12 @@ if (isTest) {
   // provider from the test suite, even if backend/.env is configured for them.
   parsed.data.CLOUDINARY_URL = '';
   parsed.data.PAYMENT_PROVIDER = 'MOCK';
+  // No real emails/SMS from tests; the signup tests switch verification on
+  // explicitly (most suites register customers in one call).
+  parsed.data.EMAIL_PROVIDER = 'LOG';
+  parsed.data.SMS_PROVIDER = 'LOG';
+  parsed.data.SIGNUP_VERIFICATION_REQUIRED = false;
+  parsed.data.NEW_ARRIVALS_DIGEST_MINUTES = 0;
 }
 
 module.exports = parsed.data;

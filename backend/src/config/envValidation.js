@@ -232,7 +232,52 @@ function validateProductionConfig(config, rawEnv = {}) {
     problems.push('CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name> (copy it from the Cloudinary dashboard).');
   }
 
+  // Verification codes: signup verification may never be switched off in
+  // production, and a selected email/SMS provider must be fully configured.
+  if (config.SIGNUP_VERIFICATION_REQUIRED === false) {
+    problems.push('SIGNUP_VERIFICATION_REQUIRED=false is not allowed in production (new accounts must verify a phone or email).');
+  }
+  const emailProviderName = String(config.EMAIL_PROVIDER || 'LOG').toUpperCase();
+  if (emailProviderName !== 'LOG' && !String(config.EMAIL_FROM || '').trim()) {
+    problems.push(`EMAIL_PROVIDER=${emailProviderName} requires EMAIL_FROM (e.g. "UgaMarket <no-reply@your-domain>").`);
+  }
+  if (emailProviderName === 'SMTP' && !String(config.SMTP_HOST || '').trim()) {
+    problems.push('EMAIL_PROVIDER=SMTP requires SMTP_HOST (plus SMTP_USER / SMTP_PASS for authenticated servers).');
+  }
+  if (emailProviderName === 'RESEND' && !String(config.RESEND_API_KEY || '').trim()) {
+    problems.push('EMAIL_PROVIDER=RESEND requires RESEND_API_KEY.');
+  }
+  if (String(config.SMS_PROVIDER || 'LOG').toUpperCase() === 'AFRICASTALKING') {
+    if (!String(config.AT_USERNAME || '').trim() || !String(config.AT_API_KEY || '').trim()) {
+      problems.push("SMS_PROVIDER=AFRICASTALKING requires AT_USERNAME and AT_API_KEY (Africa's Talking dashboard > Settings > API Key).");
+    }
+  }
+
   return problems;
+}
+
+/**
+ * Non-fatal production advice, logged at startup. Missing delivery
+ * providers do not stop the API (shopping keeps working), but customers
+ * cannot verify new accounts or reset passwords until one is configured.
+ */
+function productionWarnings(config) {
+  const warnings = [];
+  const email = String(config.EMAIL_PROVIDER || 'LOG').toUpperCase() !== 'LOG';
+  const sms = String(config.SMS_PROVIDER || 'LOG').toUpperCase() !== 'LOG';
+  if (!email && !sms) {
+    warnings.push(
+      'No email or SMS provider is configured (EMAIL_PROVIDER / SMS_PROVIDER). Sign-up verification and password reset codes cannot be delivered until one is set.'
+    );
+  } else if (!sms) {
+    warnings.push('SMS_PROVIDER is not configured: verification codes can only be sent by email.');
+  } else if (!email) {
+    warnings.push('EMAIL_PROVIDER is not configured: verification codes can only be sent by SMS, and newsletter emails are disabled.');
+  }
+  if (!String(config.TURN_URLS || '').trim()) {
+    warnings.push('TURN_URLS is not set: some customer voice calls on mobile networks may fail to connect (STUN only).');
+  }
+  return warnings;
 }
 
 // Placeholder/dummy shapes for Flutterwave keys: documented example tokens
@@ -254,6 +299,7 @@ const looksLikePlaceholder = looksLikeFlutterwavePlaceholder;
 
 module.exports = {
   validateProductionConfig,
+  productionWarnings,
   looksLikeFlutterwavePlaceholder,
   looksLikePlaceholder,
   PRODUCTION_MIN_SECRET_LENGTH,

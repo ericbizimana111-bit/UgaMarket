@@ -124,16 +124,25 @@ enum InventoryTransactionType {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  fullName     String   @map("full_name") @db.VarChar(150)
-  email        String?  @unique @db.VarChar(255)
-  phone        String   @unique @db.VarChar(30)
-  passwordHash String   @map("password_hash") @db.VarChar(255)
+  id                 String    @id @default(uuid()) @db.Uuid
+  fullName           String    @map("full_name") @db.VarChar(150)
+  email              String?   @unique @db.VarChar(255)
+  phone              String    @unique @db.VarChar(30)
+  passwordHash       String    @map("password_hash") @db.VarChar(255)
   // Google account "sub" for "Continue with Google" (null for phone-only accounts)
-  googleId     String?  @unique @map("google_id") @db.VarChar(64)
-  isActive     Boolean  @default(true) @map("is_active")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  googleId           String?   @unique @map("google_id") @db.VarChar(64)
+  isActive           Boolean   @default(true) @map("is_active")
+  // Contact verification (set only after a successful OTP / Google check).
+  emailVerifiedAt    DateTime? @map("email_verified_at")
+  phoneVerifiedAt    DateTime? @map("phone_verified_at")
+  // Tokens issued before this instant are rejected (a password reset or
+  // change signs every other device out).
+  passwordChangedAt  DateTime? @map("password_changed_at")
+  // Current marketing-communications choice; the history is in consent_records.
+  marketingConsent   Boolean   @default(false) @map("marketing_consent")
+  marketingConsentAt DateTime? @map("marketing_consent_at")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
 
   addresses       Address[]
   cart            Cart?
@@ -142,6 +151,9 @@ model User {
   wishlists       Wishlist[]
   conversation    Conversation?
   serviceRequests ServiceRequest[]
+  securityEvents  SecurityEvent[]
+  consentRecords  ConsentRecord[]
+  callSessions    CallSession[]
 
   @@map("users")
 }
@@ -162,6 +174,7 @@ model Admin {
   notificationReads     AdminNotificationRead[]
   chatMessages          ChatMessage[]
   serviceRequestEvents  ServiceRequestEvent[]
+  callSessions          CallSession[]
 
   @@map("admins")
 }
@@ -383,6 +396,7 @@ model Order {
   payments        Payment[]
   delivery        Delivery?
   chatMessages    ChatMessage[]
+  consentRecords  ConsentRecord[]
 
   @@index([userId])
   @@index([status])
@@ -565,16 +579,134 @@ model Wishlist {
   @@map("wishlists")
 }
 
+enum OtpPurpose {
+  SIGNUP
+  VERIFY_EMAIL
+  VERIFY_PHONE
+  PASSWORD_RESET
+  CHANGE_EMAIL
+  CHANGE_PHONE
+}
+
+enum OtpChannel {
+  SMS
+  EMAIL
+}
+
+// One-time verification codes. Only a keyed hash of the code is stored; codes
+// expire, allow a limited number of guesses and are single-use.
 model OtpCode {
-  id        String   @id @default(uuid()) @db.Uuid
-  phone     String   @db.VarChar(30)
-  codeHash  String   @map("code_hash") @db.VarChar(255)
-  expiresAt DateTime @map("expires_at")
-  consumed  Boolean  @default(false)
-  createdAt DateTime @default(now()) @map("created_at")
+  id             String     @id @default(uuid()) @db.Uuid
+  // Normalized destination (+2567XXXXXXXX or a lower-cased email address).
+  // Column name kept from the phone-only version.
+  phone          String     @db.VarChar(255)
+  channel        OtpChannel @default(SMS)
+  purpose        OtpPurpose @default(VERIFY_PHONE)
+  userId         String?    @map("user_id") @db.Uuid
+  codeHash       String     @map("code_hash") @db.VarChar(255)
+  expiresAt      DateTime   @map("expires_at")
+  consumed       Boolean    @default(false)
+  consumedAt     DateTime?  @map("consumed_at")
+  attempts       Int        @default(0)
+  maxAttempts    Int        @default(5) @map("max_attempts")
+  // QUEUED | SENT | DELIVERED | FAILED | SUPPRESSED (decoy: nothing was sent)
+  deliveryStatus String     @default("QUEUED") @map("delivery_status") @db.VarChar(20)
+  providerRef    String?    @map("provider_ref") @db.VarChar(150)
+  ipAddress      String?    @map("ip_address") @db.VarChar(64)
+  createdAt      DateTime   @default(now()) @map("created_at")
 
   @@index([phone])
+  @@index([phone, purpose, createdAt])
+  @@index([providerRef])
   @@map("otp_codes")
+}
+
+// Account-security audit trail (OTP sent/verified/failed, password and
+// contact changes). Never contains codes or passwords.
+model SecurityEvent {
+  id        Int      @id @default(autoincrement())
+  userId    String?  @map("user_id") @db.Uuid
+  type      String   @db.VarChar(50)
+  // Masked destination, e.g. "+25677*****23" or "j***@gmail.com".
+  target    String?  @db.VarChar(255)
+  ipAddress String?  @map("ip_address") @db.VarChar(64)
+  userAgent String?  @map("user_agent") @db.VarChar(300)
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([type])
+  @@map("security_events")
+}
+
+enum ConsentType {
+  TERMS
+  PRIVACY
+  MARKETING
+}
+
+// Append-only record of what a customer agreed to (or withdrew), when, and
+// which document version they were shown.
+model ConsentRecord {
+  id        Int         @id @default(autoincrement())
+  userId    String      @map("user_id") @db.Uuid
+  orderId   String?     @map("order_id") @db.Uuid
+  type      ConsentType
+  granted   Boolean
+  version   String?     @db.VarChar(40)
+  // CHECKOUT | ACCOUNT | UNSUBSCRIBE_LINK
+  source    String      @db.VarChar(30)
+  ipAddress String?     @map("ip_address") @db.VarChar(64)
+  userAgent String?     @map("user_agent") @db.VarChar(300)
+  createdAt DateTime    @default(now()) @map("created_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  order Order? @relation(fields: [orderId], references: [id], onDelete: SetNull)
+
+  @@index([userId, type, createdAt])
+  @@index([orderId])
+  @@map("consent_records")
+}
+
+enum SubscriberStatus {
+  PENDING
+  ACTIVE
+  UNSUBSCRIBED
+}
+
+// Newsletter / new-arrivals mailing list (double opt-in).
+model NewsletterSubscriber {
+  id                  String           @id @default(uuid()) @db.Uuid
+  email               String           @unique @db.VarChar(255)
+  status              SubscriberStatus @default(PENDING)
+  // sha256 of the emailed confirmation token (single-use).
+  confirmTokenHash    String?          @unique @map("confirm_token_hash") @db.VarChar(64)
+  confirmTokenExpires DateTime?        @map("confirm_token_expires")
+  // Random token embedded in every email's unsubscribe link.
+  unsubscribeToken    String           @unique @map("unsubscribe_token") @db.VarChar(64)
+  language            String           @default("en") @db.VarChar(5)
+  source              String           @default("FOOTER") @db.VarChar(30)
+  consentIp           String?          @map("consent_ip") @db.VarChar(64)
+  confirmedAt         DateTime?        @map("confirmed_at")
+  unsubscribedAt      DateTime?        @map("unsubscribed_at")
+  lastConfirmSentAt   DateTime?        @map("last_confirm_sent_at")
+  createdAt           DateTime         @default(now()) @map("created_at")
+  updatedAt           DateTime         @updatedAt @map("updated_at")
+
+  @@index([status])
+  @@map("newsletter_subscribers")
+}
+
+// "New arrivals" digest bookkeeping: products created up to this instant
+// have already been announced (single row, id = 1).
+model NewArrivalsDigest {
+  id              Int      @id @default(1)
+  lastAnnouncedAt DateTime @map("last_announced_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  @@map("new_arrivals_digest")
 }
 
 // ============================================================
@@ -646,6 +778,9 @@ model ChatMessage {
   body             String     @db.Text
   orderId          String?    @map("order_id") @db.Uuid
   serviceRequestId String?    @map("service_request_id") @db.Uuid
+  // Receipts: reached the recipient's device / opened by the recipient.
+  deliveredAt      DateTime?  @map("delivered_at")
+  readAt           DateTime?  @map("read_at")
   createdAt        DateTime   @default(now()) @map("created_at")
 
   conversation   Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
@@ -833,4 +968,37 @@ model Faq {
 
   @@index([isActive, displayOrder])
   @@map("faqs")
+}
+
+// ============================================================
+// Customer -> store voice calls (WebRTC audio, signalled over SSE).
+// Audio flows peer-to-peer (DTLS-SRTP encrypted); this table is the call
+// log and the authority on who may signal whom.
+// ============================================================
+enum CallStatus {
+  RINGING
+  ACTIVE
+  ENDED
+  MISSED
+  REJECTED
+  FAILED
+}
+
+model CallSession {
+  id         String     @id @default(uuid()) @db.Uuid
+  userId     String     @map("user_id") @db.Uuid
+  adminId    String?    @map("admin_id") @db.Uuid
+  status     CallStatus @default(RINGING)
+  endReason  String?    @map("end_reason") @db.VarChar(40)
+  endedBy    String?    @map("ended_by") @db.VarChar(10)
+  answeredAt DateTime?  @map("answered_at")
+  endedAt    DateTime?  @map("ended_at")
+  createdAt  DateTime   @default(now()) @map("created_at")
+
+  user  User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+  admin Admin? @relation(fields: [adminId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt])
+  @@index([status])
+  @@map("call_sessions")
 }
