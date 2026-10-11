@@ -119,7 +119,14 @@ services:
         generateValue: true
       - key: OTP_SECRET
         generateValue: true
-      # ── Voice calls: TURN relay for callers on mobile networks ──
+      # ── Voice calls: TURN relay so calls connect from any network/country ──
+      # Recommended: Cloudflare Realtime TURN (key id + API token).
+      - key: CLOUDFLARE_TURN_KEY_ID
+        sync: false
+      - key: CLOUDFLARE_TURN_API_TOKEN
+        sync: false
+      - key: TURN_SECRET
+        sync: false
       - key: TURN_URLS
         sync: false
       - key: TURN_USERNAME

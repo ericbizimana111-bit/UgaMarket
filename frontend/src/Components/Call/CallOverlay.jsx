@@ -55,10 +55,11 @@ const CallOverlay = () => {
     incoming: t('callIncoming'),
     connecting: t('callConnecting'),
     connected: elapsed,
+    reconnecting: t('callReconnecting'),
     ended: error ? t(ERROR_KEYS[error.code] || 'callErrGeneric') : t('callEnded')
   }[state];
 
-  const live = state === 'ringing' || state === 'incoming' || state === 'connecting' || state === 'connected';
+  const live = ['ringing', 'incoming', 'connecting', 'connected', 'reconnecting'].includes(state);
 
   return (
     <div className={`um-call um-call--${state}`} role="dialog" aria-live="polite" aria-label={t('callSupport')}>
@@ -81,7 +82,7 @@ const CallOverlay = () => {
         )}
       </div>
       <div className="um-call__actions">
-        {state === 'connected' && (
+        {(state === 'connected' || state === 'reconnecting') && (
           <button
             type="button"
             className={`um-call__btn ${muted ? 'um-call__btn--on' : ''}`}
@@ -112,7 +113,7 @@ const CallOverlay = () => {
         )}
       </div>
 
-      {(state === 'connecting' || state === 'connected') && health && (
+      {(state === 'connecting' || state === 'connected' || state === 'reconnecting') && health && (
         <div className="um-call__health">
           <div className="um-call__meters">
             <Meter label={t('callMeterYou')} level={health.micLevel} />

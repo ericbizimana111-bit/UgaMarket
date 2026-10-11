@@ -3,6 +3,7 @@ const env = require('../config/env');
 const logger = require('../utils/logger');
 const { AppError } = require('../middleware/errorHandler');
 const realtime = require('./realtime.service');
+const { getIceServers } = require('./iceServers.service');
 const notifications = require('./notification.service');
 
 /**
@@ -27,7 +28,9 @@ const notifications = require('./notification.service');
  */
 
 const LIVE = ['RINGING', 'ACTIVE'];
-const SIGNAL_TYPES = new Set(['offer', 'answer', 'ice']);
+// 'restart': the answering side asks the caller to renegotiate (ICE restart)
+// after the network changed, e.g. Wi‑Fi -> mobile data.
+const SIGNAL_TYPES = new Set(['offer', 'answer', 'ice', 'restart']);
 const MAX_SIGNAL_BYTES = 16 * 1024;
 const MAX_CALLS_PER_10_MIN = 5;
 const MAX_OUTBOUND_PER_10_MIN = 20;
@@ -42,23 +45,10 @@ function codedError(message, statusCode, code) {
   return err;
 }
 
-function iceServers() {
-  const split = (v) =>
-    String(v || '')
-      .split(',')
-      .map((s) => s.trim())
-      .filter(Boolean);
-  const servers = [];
-  const stun = split(env.STUN_URLS);
-  if (stun.length) servers.push({ urls: stun });
-  const turn = split(env.TURN_URLS);
-  if (turn.length) servers.push({ urls: turn, username: env.TURN_USERNAME, credential: env.TURN_CREDENTIAL });
-  return servers;
-}
-
-function callConfig() {
+/** Call settings for one participant (ICE servers carry short-lived TURN credentials). */
+async function callConfig(identity) {
   return {
-    iceServers: iceServers(),
+    iceServers: await getIceServers(identity),
     ringTimeoutSeconds: env.CALL_RING_TIMEOUT_SECONDS,
     maxMinutes: env.CALL_MAX_MINUTES,
   };
@@ -312,7 +302,7 @@ async function relaySignal(party, callId, { type, data }) {
   if (call.status !== 'ACTIVE') throw codedError('This call is not active.', 409, 'CALL_NOT_ACTIVE');
   // Whoever placed the call makes the offer; the other side answers. ICE flows both ways.
   const caller = callerSide(call);
-  if ((type === 'offer' && party.kind !== caller) || (type === 'answer' && party.kind === caller)) {
+  if ((type === 'offer' && party.kind !== caller) || ((type === 'answer' || type === 'restart') && party.kind === caller)) {
     throw new AppError('Unexpected signal for this side of the call', 400);
   }
   const to = party.kind === 'CUSTOMER' ? `admin:${call.adminId}` : `user:${call.userId}`;

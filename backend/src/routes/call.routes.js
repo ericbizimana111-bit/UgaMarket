@@ -10,7 +10,7 @@ const callService = require('../services/call.service');
 const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i, 'Invalid ID');
 const idParams = z.object({ id: uuid });
 const signalBody = z.object({
-  type: z.enum(['offer', 'answer', 'ice']),
+  type: z.enum(['offer', 'answer', 'ice', 'restart']),
   data: z.unknown(),
 });
 const endBody = z.object({ reason: z.string().max(40).optional() });
@@ -42,13 +42,16 @@ const customer = express.Router();
 customer.use(authenticateCustomer);
 const asCustomer = (req) => ({ kind: 'CUSTOMER', id: req.user.id });
 
-customer.get('/config', (req, res) => res.json({ success: true, data: callService.callConfig() }));
+customer.get(
+  '/config',
+  handle(async (req, res) => res.json({ success: true, data: await callService.callConfig(`u${req.user.id}`) }))
+);
 
 customer.post(
   '/',
   handle(async (req, res) => {
     const call = await callService.startCall(req.user.id);
-    res.status(201).json({ success: true, data: { call, config: callService.callConfig() } });
+    res.status(201).json({ success: true, data: { call, config: await callService.callConfig(req.user ? `u${req.user.id}` : `a${req.admin.id}`) } });
   })
 );
 
@@ -57,7 +60,7 @@ customer.post(
   '/:id/accept',
   validateRequest({ params: idParams }),
   handle(async (req, res) => {
-    res.json({ success: true, data: { call: await callService.acceptOutboundCall(req.user.id, req.params.id), config: callService.callConfig() } });
+    res.json({ success: true, data: { call: await callService.acceptOutboundCall(req.user.id, req.params.id), config: await callService.callConfig(req.user ? `u${req.user.id}` : `a${req.admin.id}`) } });
   })
 );
 
@@ -94,7 +97,10 @@ admin.use(authenticateAdmin);
 admin.use(requireRole('DISPATCHER', 'ADMIN', 'SUPER_ADMIN'));
 const asAdmin = (req) => ({ kind: 'ADMIN', id: req.admin.id });
 
-admin.get('/config', (req, res) => res.json({ success: true, data: callService.callConfig() }));
+admin.get(
+  '/config',
+  handle(async (req, res) => res.json({ success: true, data: await callService.callConfig(`a${req.admin.id}`) }))
+);
 
 admin.get(
   '/',
@@ -109,7 +115,7 @@ admin.post(
   validateRequest({ body: z.object({ userId: uuid }) }),
   handle(async (req, res) => {
     const call = await callService.startOutboundCall(req.admin, req.body.userId);
-    res.status(201).json({ success: true, data: { call, config: callService.callConfig() } });
+    res.status(201).json({ success: true, data: { call, config: await callService.callConfig(req.user ? `u${req.user.id}` : `a${req.admin.id}`) } });
   })
 );
 
@@ -117,7 +123,7 @@ admin.post(
   '/:id/accept',
   validateRequest({ params: idParams }),
   handle(async (req, res) => {
-    res.json({ success: true, data: { call: await callService.acceptCall(req.admin, req.params.id), config: callService.callConfig() } });
+    res.json({ success: true, data: { call: await callService.acceptCall(req.admin, req.params.id), config: await callService.callConfig(req.user ? `u${req.user.id}` : `a${req.admin.id}`) } });
   })
 );
 

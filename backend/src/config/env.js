@@ -138,6 +138,12 @@ const envSchema = z.object({
   TURN_URLS: z.string().default(''),
   TURN_USERNAME: z.string().default(''),
   TURN_CREDENTIAL: z.string().default(''),
+  // coturn "use-auth-secret": time-limited credentials instead of a fixed password.
+  TURN_SECRET: z.string().default(''),
+  // Cloudflare Realtime TURN (global relay network): Dashboard > Realtime > TURN.
+  CLOUDFLARE_TURN_KEY_ID: z.string().trim().default(''),
+  CLOUDFLARE_TURN_API_TOKEN: z.string().trim().default(''),
+  TURN_TTL_SECONDS: z.coerce.number().int().min(600).max(86400).default(14400),
   CALL_RING_TIMEOUT_SECONDS: z.coerce.number().int().min(15).max(120).default(45),
   CALL_MAX_MINUTES: z.coerce.number().int().min(1).max(240).default(30),
 

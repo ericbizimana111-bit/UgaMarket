@@ -10,10 +10,10 @@ import { prefStorage } from '../utils/consent';
 
 export const THEME_ACCENTS = [
   { id: 'green', swatch: '#1c5233' },
+  { id: 'orange', swatch: '#ff6400' },
   { id: 'blue', swatch: '#1d4ed8' },
   { id: 'purple', swatch: '#6d28d9' },
   { id: 'teal', swatch: '#0f766e' },
-  { id: 'orange', swatch: '#c2410c' },
   { id: 'rose', swatch: '#be123c' },
   { id: 'midnight', swatch: '#1e293b' }
 ];
@@ -26,7 +26,7 @@ const ACCENT_IDS = new Set(THEME_ACCENTS.map((a) => a.id));
 
 // Browser UI colour (Android address bar) per resolved theme.
 const BAR_COLORS = {
-  light: { green: '#1c5233', blue: '#1d4ed8', purple: '#6d28d9', teal: '#0f766e', orange: '#c2410c', rose: '#be123c', midnight: '#1e293b' },
+  light: { green: '#1c5233', blue: '#1d4ed8', purple: '#6d28d9', teal: '#0f766e', orange: '#d64000', rose: '#be123c', midnight: '#1e293b' },
   dark: '#0b1117'
 };
 

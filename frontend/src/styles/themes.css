@@ -55,18 +55,19 @@ html[data-accent='teal'] {
   --focus-ring: rgba(15, 118, 110, 0.45);
 }
 
+/* Marketplace orange, as on Alibaba.com (#d64000 buttons, #b83600 hover,
+   #fff3ec tints). Highlights switch to the UgaMarket green from the logo. */
 html[data-accent='orange'] {
-  --primary: #c2410c;
-  --primary-hover: #9a3412;
-  --primary-soft: #fdf0e8;
-  --primary-line: #f6d3bf;
-  --primary-deep: #6b2408;
-  --footer-bg: #3a1606;
-  --focus-ring: rgba(194, 65, 12, 0.45);
-  /* the amber accent would clash with orange: use teal for highlights */
-  --accent: #0f766e;
-  --accent-hover: #115e59;
-  --accent-soft: #e6f5f3;
+  --primary: #d64000;
+  --primary-hover: #b83600;
+  --primary-soft: #fff3ec;
+  --primary-line: #ffd3b8;
+  --primary-deep: #9c2f00;
+  --footer-bg: #2b1206;
+  --focus-ring: rgba(255, 100, 0, 0.45);
+  --accent: #1c5233;
+  --accent-hover: #143d26;
+  --accent-soft: #e9f4ee;
 }
 
 html[data-accent='rose'] {
@@ -103,9 +104,9 @@ html[data-theme='dark'] {
   --surface: #121a23;
   --surface-alt: #18232f;
 
-  --accent: #c26805;
-  --accent-hover: #a85a04;
-  --accent-soft: #33240d;
+  --accent: #d64000;
+  --accent-hover: #b83600;
+  --accent-soft: #3a1d0c;
 
   --danger: #e5484d;
   --danger-soft: #3a1618;
@@ -161,16 +162,16 @@ html[data-theme='dark'][data-accent='teal'] {
 }
 
 html[data-theme='dark'][data-accent='orange'] {
-  --primary: #c8501a;
-  --primary-hover: #ad4415;
-  --primary-soft: #33190d;
-  --primary-line: #57290f;
-  --primary-deep: #4a1d08;
+  --primary: #d64000;
+  --primary-hover: #b83600;
+  --primary-soft: #3a1d0c;
+  --primary-line: #5c2a0e;
+  --primary-deep: #5a1f02;
   --footer-bg: #120703;
-  --focus-ring: rgba(240, 120, 60, 0.5);
-  --accent: #11867b;
-  --accent-hover: #0e7268;
-  --accent-soft: #0f2a28;
+  --focus-ring: rgba(255, 120, 40, 0.55);
+  --accent: #2b8a54;
+  --accent-hover: #237447;
+  --accent-soft: #14301f;
 }
 
 html[data-theme='dark'][data-accent='rose'] {

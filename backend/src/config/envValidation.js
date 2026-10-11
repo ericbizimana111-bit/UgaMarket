@@ -274,8 +274,12 @@ function productionWarnings(config) {
   } else if (!email) {
     warnings.push('EMAIL_PROVIDER is not configured: verification codes can only be sent by SMS, and newsletter emails are disabled.');
   }
-  if (!String(config.TURN_URLS || '').trim()) {
-    warnings.push('TURN_URLS is not set: some customer voice calls on mobile networks may fail to connect (STUN only).');
+  const hasTurn =
+    (String(config.CLOUDFLARE_TURN_KEY_ID || '').trim() && String(config.CLOUDFLARE_TURN_API_TOKEN || '').trim()) || String(config.TURN_URLS || '').trim();
+  if (!hasTurn) {
+    warnings.push(
+      'No TURN relay is configured (CLOUDFLARE_TURN_KEY_ID/CLOUDFLARE_TURN_API_TOKEN or TURN_URLS): voice calls between different mobile networks or countries will often fail to connect.'
+    );
   }
   return warnings;
 }

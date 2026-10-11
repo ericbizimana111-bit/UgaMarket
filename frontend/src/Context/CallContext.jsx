@@ -55,6 +55,10 @@ export const CallProvider = ({ children }) => {
   const stopRing = useRef(null);
   const resetTimer = useRef(null);
   const stateRef = useRef('idle');
+  // Network changes (Wi‑Fi <-> mobile data, weak signal): renegotiate instead of dropping.
+  const restartAttempts = useRef(0);
+  const disconnectTimer = useRef(null);
+  const MAX_RESTARTS = 4;
 
   useEffect(() => {
     stateRef.current = state;
@@ -67,6 +71,8 @@ export const CallProvider = ({ children }) => {
 
   const cleanup = useCallback(() => {
     silenceRing();
+    clearTimeout(disconnectTimer.current);
+    restartAttempts.current = 0;
     diagRef.current?.stop();
     diagRef.current = null;
     setHealth(null);
@@ -130,16 +136,26 @@ export const CallProvider = ({ children }) => {
     const onState = () => {
       const s = pc.connectionState || pc.iceConnectionState;
       if (s === 'connected' || s === 'completed') {
-        if (stateRef.current !== 'connected') {
+        clearTimeout(disconnectTimer.current);
+        restartAttempts.current = 0;
+        if (stateRef.current === 'reconnecting') {
+          setState('connected');
+        } else if (stateRef.current !== 'connected') {
           setState('connected');
           setConnectedAt(Date.now());
           tuneAudioSender(pc);
           playTone('alert', { force: true });
           audioRef.current?.play?.().catch(() => {});
         }
+      } else if (s === 'disconnected') {
+        // Often recovers by itself within a few seconds; otherwise renegotiate.
+        clearTimeout(disconnectTimer.current);
+        disconnectTimer.current = setTimeout(() => {
+          const now = pc.connectionState || pc.iceConnectionState;
+          if (now === 'disconnected' || now === 'failed') reconnectRef.current?.();
+        }, 3000);
       } else if (s === 'failed') {
-        setError({ code: 'CONNECTION_FAILED' });
-        hangUp();
+        reconnectRef.current?.();
       }
     };
     pc.onconnectionstatechange = onState;
@@ -152,7 +168,52 @@ export const CallProvider = ({ children }) => {
       if (current) setMicId(current);
     });
     return pc;
-  }, [signal, hangUp]);
+  }, [signal]);
+
+  /**
+   * ICE restart: the caller renegotiates with fresh network paths (and TURN
+   * relays); the answering side asks the caller to do so.
+   */
+  const reconnectRef = useRef(null);
+  reconnectRef.current = async () => {
+    const pc = pcRef.current;
+    if (!pc || !callIdRef.current) return;
+    if (restartAttempts.current >= MAX_RESTARTS) {
+      setError({ code: 'CONNECTION_FAILED' });
+      hangUp();
+      return;
+    }
+    restartAttempts.current += 1;
+    if (stateRef.current === 'connected') setState('reconnecting');
+    try {
+      if (roleRef.current === 'caller') {
+        pc.restartIce?.();
+        const offer = await pc.createOffer({ iceRestart: true });
+        await pc.setLocalDescription(offer);
+        await signal('offer', { type: offer.type, sdp: offer.sdp });
+      } else {
+        await signal('restart', null);
+      }
+    } catch {
+      /* the next state change retries */
+    }
+    // If nothing improves, try again.
+    clearTimeout(disconnectTimer.current);
+    disconnectTimer.current = setTimeout(() => {
+      const now = pc.connectionState || pc.iceConnectionState;
+      if (now !== 'connected' && now !== 'completed') reconnectRef.current?.();
+    }, 8000);
+  };
+
+  /** After renegotiating, return to "connected" if the link never dropped. */
+  const settleIfUp = (pc) => {
+    const s = pc.connectionState || pc.iceConnectionState;
+    if ((s === 'connected' || s === 'completed') && stateRef.current === 'reconnecting') {
+      clearTimeout(disconnectTimer.current);
+      restartAttempts.current = 0;
+      setState('connected');
+    }
+  };
 
   const applyIce = async (pc, candidate) => {
     if (remoteSet.current) await pc.addIceCandidate(candidate).catch(() => {});
@@ -308,12 +369,16 @@ export const CallProvider = ({ children }) => {
       if (data.type === 'answer' && roleRef.current === 'caller') {
         await pc.setRemoteDescription(data.data);
         await flushIce(pc);
+        setTimeout(() => settleIfUp(pc), 1500);
       } else if (data.type === 'offer' && roleRef.current === 'callee') {
         await pc.setRemoteDescription(data.data);
         await flushIce(pc);
         const answer = await pc.createAnswer();
         await pc.setLocalDescription(answer);
         await signal('answer', { type: answer.type, sdp: answer.sdp });
+        setTimeout(() => settleIfUp(pc), 1500);
+      } else if (data.type === 'restart' && roleRef.current === 'caller') {
+        await reconnectRef.current?.();
       } else if (data.type === 'ice' && data.data) {
         await applyIce(pc, data.data);
       }

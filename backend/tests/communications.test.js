@@ -236,6 +236,11 @@ describe('Communications & consent', () => {
         .expect(200);
       expect(publish).toHaveBeenCalledWith(`admin:${adminId}`, 'call:signal', expect.objectContaining({ type: 'answer' }));
 
+      // After a network change the answering side may ask the caller to reconnect; the caller may not.
+      await request(app).post(`/api/calls/${callId}/signal`).set('Authorization', `Bearer ${c.token}`).send({ type: 'restart', data: null }).expect(200);
+      expect(publish).toHaveBeenCalledWith(`admin:${adminId}`, 'call:signal', expect.objectContaining({ type: 'restart' }));
+      await request(app).post(`/api/admin/calls/${callId}/signal`).set('Authorization', `Bearer ${adminToken}`).send({ type: 'restart', data: null }).expect(400);
+
       const end = await request(app).post(`/api/admin/calls/${callId}/end`).set('Authorization', `Bearer ${adminToken}`).send({});
       expect(end.body.data.call.status).toBe('ENDED');
     });

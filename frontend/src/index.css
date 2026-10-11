@@ -12,20 +12,23 @@
   --primary-hover: #143d26;
   --primary-soft: #e9f4ee;
   --primary-line: #cfe5d8;
-  --accent: #d97706;
-  --accent-hover: #b45f04;
-  --accent-soft: #fef3e2;
+  /* Marketplace orange (as on Alibaba.com: #d64000 keeps white text readable) */
+  --accent: #d64000;
+  --accent-hover: #b83600;
+  --accent-soft: #fff3ec;
+  --accent-bright: #ff6400; /* decorative only (no text on it) */
 
-  /* Neutrals */
-  --ink: #0f172a;
-  --text: #1e293b;
-  --muted: #5b6778;
-  --faint: #7b8696;
-  --line: #e3e8e5;
-  --line-strong: #cbd3cf;
-  --bg: #f4f6f5;
+  /* Neutrals: true greys, the marketplace standard (Alibaba.com: #222 text,
+     #767676 secondary, #f4f4f4 page, #ddd lines) */
+  --ink: #1a1a1a;
+  --text: #222222;
+  --muted: #666666;
+  --faint: #707070;
+  --line: #e5e5e5;
+  --line-strong: #d1d1d1;
+  --bg: #f4f4f4;
   --surface: #ffffff;
-  --surface-alt: #eef2f0;
+  --surface-alt: #f8f8f8;
 
   /* Status */
   --danger: #b42318;
@@ -51,7 +54,8 @@
   --fast: 0.16s;
   --base: 0.28s;
 
-  --font: 'Inter', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+  /* Same family as Alibaba.com: Inter, then the best native UI fonts. */
+  --font: 'Inter', 'SF Pro Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Helvetica, Tahoma, Arial, sans-serif;
 
   /* Type scale (rem; 1rem = 16px). Nothing readable goes below --text-xs. */
   --text-xs: 0.8125rem; /* 13px: badges, fine print */
@@ -193,7 +197,8 @@ h5 {
   text-align: center;
   white-space: nowrap;
   border: 1px solid transparent;
-  border-radius: var(--radius-sm);
+  /* Pill buttons, the modern marketplace style */
+  border-radius: 999px;
   user-select: none;
   -webkit-tap-highlight-color: transparent;
   transition: color var(--fast) var(--ease), border-color var(--fast) var(--ease),
