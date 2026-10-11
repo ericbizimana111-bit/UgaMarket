@@ -20,7 +20,8 @@ export const THEME_ACCENTS = [
 export const THEME_MODES = ['light', 'dark', 'system'];
 
 const STORAGE_KEY = 'ugamarket_theme';
-const DEFAULTS = { mode: 'system', accent: 'green' };
+// Light is the default; dark (or following the device) is the customer's choice.
+const DEFAULTS = { mode: 'light', accent: 'green' };
 const ACCENT_IDS = new Set(THEME_ACCENTS.map((a) => a.id));
 
 // Browser UI colour (Android address bar) per resolved theme.

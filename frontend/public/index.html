@@ -37,7 +37,7 @@
         var raw = sessionStorage.getItem('ugamarket_theme') || localStorage.getItem('ugamarket_theme');
         var t = raw ? JSON.parse(raw) : {};
         var accents = ['green', 'blue', 'purple', 'teal', 'orange', 'rose', 'midnight'];
-        var mode = t.mode === 'light' || t.mode === 'dark' ? t.mode : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        var mode = t.mode === 'dark' ? 'dark' : t.mode === 'system' && window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
         document.documentElement.setAttribute('data-theme', mode);
         document.documentElement.setAttribute('data-accent', accents.indexOf(t.accent) >= 0 ? t.accent : 'green');
       } catch (e) {

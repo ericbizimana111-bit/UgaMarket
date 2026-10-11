@@ -68,6 +68,18 @@ describe('themes', () => {
     );
   };
 
+  test('light mode is the default, even when the device prefers dark', () => {
+    const original = window.matchMedia;
+    window.matchMedia = () => ({ matches: true, addEventListener: () => {}, removeEventListener: () => {} });
+    render(
+      <ThemeProvider>
+        <Switcher />
+      </ThemeProvider>
+    );
+    expect(document.documentElement.getAttribute('data-theme')).toBe('light');
+    window.matchMedia = original;
+  });
+
   test('the chosen mode and colour apply to the whole document', () => {
     render(
       <ThemeProvider>
