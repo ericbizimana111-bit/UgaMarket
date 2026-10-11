@@ -6,7 +6,6 @@ import {
   BadgeCheck,
   ChevronLeft,
   ChevronRight,
-  Clock,
   CreditCard,
   ShieldCheck,
   ShoppingBag,
@@ -417,12 +416,17 @@ const Shop = () => {
           </div>
           <ol className="how__steps">
             {[
-              { n: '01', Icon: ShoppingBasket, title: t('howStep1Title'), desc: t('howStep1Desc') },
-              { n: '02', Icon: CreditCard, title: t('howStep2Title'), desc: t('howStep2Desc') },
-              { n: '03', Icon: ShieldCheck, title: t('howStep3Title'), desc: t('howStep3Desc') }
+              { n: 1, Icon: ShoppingBasket, title: t('howStep1Title'), desc: t('howStep1Desc') },
+              { n: 2, Icon: CreditCard, title: t('howStep2Title'), desc: t('howStep2Desc') },
+              { n: 3, Icon: ShieldCheck, title: t('howStep3Title'), desc: t('howStep3Desc') }
             ].map(({ n, Icon, title, desc }) => (
               <li key={n} className="how__step">
-                <Icon size={28} strokeWidth={1.75} aria-hidden="true" className="how__icon" />
+                <div className="how__step-top">
+                  <span className="how__icon" aria-hidden="true">
+                    <Icon size={22} strokeWidth={1.9} />
+                  </span>
+                  <span className="how__num">{t('howStepLabel', { n })}</span>
+                </div>
                 <h3>{title}</h3>
                 <p>{desc}</p>
               </li>
@@ -435,14 +439,16 @@ const Shop = () => {
       {services.length > 0 && (
         <Reveal as="section" className="section container">
           <div className="home-svc">
-            <div className="home-svc__intro">
-              <span className="home-svc__kicker">
-                <Wrench size={14} aria-hidden="true" /> {t('servicesKicker')}
-              </span>
-              <h2>{t('homeServicesTitle')}</h2>
-              <p>{t('homeServicesDesc')}</p>
-              <Link to="/services" className="btn btn-accent">
-                {t('allServices')} <ArrowRight size={16} aria-hidden="true" />
+            <div className="section-head home-svc__head">
+              <div>
+                <span className="section-kicker">
+                  <Wrench size={13} aria-hidden="true" /> {t('servicesKicker')}
+                </span>
+                <h2 className="section-title">{t('homeServicesTitle')}</h2>
+                <p className="section-desc">{t('homeServicesDesc')}</p>
+              </div>
+              <Link to="/services" className="btn btn-primary btn-sm">
+                {t('allServices')} <ArrowRight size={15} aria-hidden="true" />
               </Link>
             </div>
             <ul className="home-svc__list">
@@ -451,13 +457,14 @@ const Shop = () => {
                 return (
                   <li key={s.id}>
                     <Link to={`/services/${s.slug}`} className="home-svc__card">
-                      <Icon size={24} aria-hidden="true" className="home-svc__icon" />
-                      <span>
-                        <strong>{s.name}</strong>
-                        <small>
-                          <Clock size={12} aria-hidden="true" /> {t('fromPrice', { amount: formatUGX(s.priceFromUgx) })}
-                        </small>
+                      <span className="home-svc__icon" aria-hidden="true">
+                        <Icon size={22} />
                       </span>
+                      <span className="home-svc__text">
+                        <strong>{s.name}</strong>
+                        <small>{t('fromPrice', { amount: formatUGX(s.priceFromUgx) })}</small>
+                      </span>
+                      <ChevronRight size={18} aria-hidden="true" className="home-svc__go" />
                     </Link>
                   </li>
                 );
