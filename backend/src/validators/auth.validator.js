@@ -72,7 +72,7 @@ const customerRegisterSchema = {
     password: newPasswordSchema,
     // Sign-up verification code (required when SIGNUP_VERIFICATION_REQUIRED)
     code: otpCodeSchema.optional(),
-    channel: channelSchema.optional().default('SMS'),
+    channel: channelSchema.optional(),
   }),
 };
 
@@ -82,7 +82,7 @@ const signupStartSchema = {
     fullName: z.string().trim().min(2, 'Full name must be at least 2 characters').max(150).optional(),
     phone: ugandaPhoneSchema,
     email: optionalEmailSchema,
-    channel: channelSchema.optional().default('SMS'),
+    channel: channelSchema.optional(),
   }),
 };
 

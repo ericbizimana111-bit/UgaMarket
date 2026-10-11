@@ -49,6 +49,16 @@ describe('validateProductionConfig (production environment validation)', () => {
       expect(validateProductionConfig(validProductionConfig(), validProductionConfig())).toEqual([]);
     });
 
+    test('missing SMS credentials never block deployment while phone codes are switched off', () => {
+      const config = validProductionConfig({ SMS_VERIFICATION_ENABLED: false, SMS_PROVIDER: 'AFRICASTALKING', AT_USERNAME: '', AT_API_KEY: '' });
+      expect(validateProductionConfig(config, config)).toEqual([]);
+    });
+
+    test('SMS credentials are only required once phone codes are switched on', () => {
+      const config = validProductionConfig({ SMS_VERIFICATION_ENABLED: true, SMS_PROVIDER: 'AFRICASTALKING', AT_USERNAME: '', AT_API_KEY: '' });
+      expect(validateProductionConfig(config, config).some((p) => p.includes('AT_USERNAME'))).toBe(true);
+    });
+
     test('accepts explicit CORS origins provided via raw env only', () => {
       const config = validProductionConfig();
       // Simulate CORS_ORIGIN coming only from the parsed schema default path

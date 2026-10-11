@@ -106,9 +106,13 @@ services:
         sync: false
       - key: RESEND_API_KEY
         sync: false
-      # Africa's Talking (MTN + Airtel Uganda SMS)
+      # Phone (SMS) verification is OFF for now: codes go by email. To turn it
+      # on later set SMS_VERIFICATION_ENABLED=true, SMS_PROVIDER=AFRICASTALKING
+      # and the AT_* keys below.
+      - key: SMS_VERIFICATION_ENABLED
+        value: "false"
       - key: SMS_PROVIDER
-        value: AFRICASTALKING
+        value: LOG
       - key: AT_USERNAME
         sync: false
       - key: AT_API_KEY

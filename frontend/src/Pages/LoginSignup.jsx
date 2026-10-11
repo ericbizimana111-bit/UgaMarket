@@ -129,8 +129,12 @@ const LoginSignup = () => {
   const [googlePhoneTouched, setGooglePhoneTouched] = useState(false);
   // Sign-up verification: which channels the server can deliver codes on,
   // the chosen channel, and the "enter your code" step once a code is sent.
-  const [verifyConfig, setVerifyConfig] = useState({ signupVerificationRequired: true, channels: { SMS: true, EMAIL: true } });
+  // Phone (SMS) codes are switched off for now: assume email-only until the server says otherwise.
+  const [verifyConfig, setVerifyConfig] = useState({ signupVerificationRequired: true, channels: { SMS: false, EMAIL: true } });
   const [channel, setChannel] = useState('SMS');
+  // Phone codes off -> every new account verifies its email, so email is required.
+  const smsCodes = verifyConfig.channels?.SMS === true;
+  const emailRequired = !isLogin && verifyConfig.signupVerificationRequired && !smsCodes;
   const [otpStep, setOtpStep] = useState(null); // { channel, sentTo, resendIn }
   const [otpError, setOtpError] = useState('');
 
@@ -191,7 +195,7 @@ const LoginSignup = () => {
   const fieldErrors = {
     fullName: isLogin ? null : validateName(values.fullName),
     phone: validatePhone(values.phone),
-    email: isLogin ? null : validateEmail(values.email),
+    email: isLogin ? null : emailRequired && !values.email.trim() ? 'errEmailRequired' : validateEmail(values.email),
     password: isLogin ? validateLoginPassword(values.password) : validateNewPassword(values.password)
   };
   const visibleError = (field) => (touched[field] && fieldErrors[field] ? t(fieldErrors[field]) : null);
@@ -216,7 +220,7 @@ const LoginSignup = () => {
 
     // New accounts verify their phone (SMS) or email with a one-time code first.
     if (!isLogin && verifyConfig.signupVerificationRequired) {
-      const useChannel = channel === 'EMAIL' && values.email.trim() ? 'EMAIL' : 'SMS';
+      const useChannel = !smsCodes || (channel === 'EMAIL' && values.email.trim()) ? 'EMAIL' : 'SMS';
       if (useChannel === 'SMS' && verifyConfig.channels && !verifyConfig.channels.SMS) {
         setFormError(values.email.trim() ? t('otpSmsDownUseEmail') : t('otpSmsDownAddEmail'));
         return;
@@ -549,7 +553,13 @@ const LoginSignup = () => {
                 </Field>
 
                 {!isLogin && (
-                  <Field id="auth-email" label={`${t('emailLabel')} (${t('optional')})`} error={visibleError('email')}>
+                  <Field
+                    id="auth-email"
+                    label={emailRequired ? t('emailLabel') : `${t('emailLabel')} (${t('optional')})`}
+                    required={emailRequired}
+                    hint={emailRequired ? t('emailCodeHint') : undefined}
+                    error={visibleError('email')}
+                  >
                     <input
                       id="auth-email"
                       type="email"
@@ -617,7 +627,7 @@ const LoginSignup = () => {
                   </p>
                 )}
 
-                {!isLogin && verifyConfig.signupVerificationRequired && (
+                {!isLogin && verifyConfig.signupVerificationRequired && smsCodes && (
                   <fieldset className="auth__channel">
                     <legend>{t('otpSendCodeBy')}</legend>
                     <label className={`auth__channel-opt ${verifyConfig.channels?.SMS === false ? 'is-disabled' : ''}`}>

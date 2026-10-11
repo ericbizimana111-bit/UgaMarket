@@ -110,6 +110,12 @@ const envSchema = z.object({
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),
   RESEND_API_KEY: z.string().default(''),
+  // Phone (SMS) verification codes. OFF for now: every code goes by email.
+  // Turn on later with SMS_VERIFICATION_ENABLED=true + an SMS provider.
+  SMS_VERIFICATION_ENABLED: z
+    .string()
+    .default('false')
+    .transform((v) => v === 'true' || v === '1'),
   SMS_PROVIDER: z.enum(['AFRICASTALKING', 'LOG']).default('LOG'),
   AT_USERNAME: z.string().trim().default(''), // "sandbox" uses the AT sandbox
   AT_API_KEY: z.string().default(''),

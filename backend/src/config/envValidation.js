@@ -247,7 +247,7 @@ function validateProductionConfig(config, rawEnv = {}) {
   if (emailProviderName === 'RESEND' && !String(config.RESEND_API_KEY || '').trim()) {
     problems.push('EMAIL_PROVIDER=RESEND requires RESEND_API_KEY.');
   }
-  if (String(config.SMS_PROVIDER || 'LOG').toUpperCase() === 'AFRICASTALKING') {
+  if (config.SMS_VERIFICATION_ENABLED === true && String(config.SMS_PROVIDER || 'LOG').toUpperCase() === 'AFRICASTALKING') {
     if (!String(config.AT_USERNAME || '').trim() || !String(config.AT_API_KEY || '').trim()) {
       problems.push("SMS_PROVIDER=AFRICASTALKING requires AT_USERNAME and AT_API_KEY (Africa's Talking dashboard > Settings > API Key).");
     }
@@ -264,15 +264,16 @@ function validateProductionConfig(config, rawEnv = {}) {
 function productionWarnings(config) {
   const warnings = [];
   const email = String(config.EMAIL_PROVIDER || 'LOG').toUpperCase() !== 'LOG';
-  const sms = String(config.SMS_PROVIDER || 'LOG').toUpperCase() !== 'LOG';
+  const smsOn = config.SMS_VERIFICATION_ENABLED === true;
+  const sms = smsOn && String(config.SMS_PROVIDER || 'LOG').toUpperCase() !== 'LOG';
   if (!email && !sms) {
     warnings.push(
-      'No email or SMS provider is configured (EMAIL_PROVIDER / SMS_PROVIDER). Sign-up verification and password reset codes cannot be delivered until one is set.'
+      'EMAIL_PROVIDER is not configured: verification codes (sign-up, password reset) cannot be delivered, so new customers cannot create accounts until it is set.'
     );
-  } else if (!sms) {
-    warnings.push('SMS_PROVIDER is not configured: verification codes can only be sent by email.');
+  } else if (smsOn && !sms) {
+    warnings.push('SMS_VERIFICATION_ENABLED=true but SMS_PROVIDER is not configured: codes will only be sent by email.');
   } else if (!email) {
-    warnings.push('EMAIL_PROVIDER is not configured: verification codes can only be sent by SMS, and newsletter emails are disabled.');
+    warnings.push('EMAIL_PROVIDER is not configured: newsletter emails are disabled.');
   }
   const hasTurn =
     (String(config.CLOUDFLARE_TURN_KEY_ID || '').trim() && String(config.CLOUDFLARE_TURN_API_TOKEN || '').trim()) || String(config.TURN_URLS || '').trim();

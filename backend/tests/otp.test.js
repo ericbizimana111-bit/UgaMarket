@@ -35,13 +35,17 @@ async function registerVerified({ phone = nextPhone(), email, password = 'Strong
 
 describe('OTP verification system', () => {
   const originalRequired = env.SIGNUP_VERIFICATION_REQUIRED;
+  const originalSms = env.SMS_VERIFICATION_ENABLED;
 
   beforeAll(() => {
     env.SIGNUP_VERIFICATION_REQUIRED = true;
+    // The SMS paths stay tested for when phone codes are switched back on.
+    env.SMS_VERIFICATION_ENABLED = true;
   });
 
   afterAll(async () => {
     env.SIGNUP_VERIFICATION_REQUIRED = originalRequired;
+    env.SMS_VERIFICATION_ENABLED = originalSms;
     const phones = [...created.phones];
     const emails = [...created.emails];
     await prisma.otpCode.deleteMany({ where: { phone: { in: [...phones, ...emails] } } });
@@ -277,6 +281,82 @@ describe('OTP verification system', () => {
       expect(confirm.statusCode).toBe(200);
       expect(confirm.body.data.user.phone).toBe(newPhone);
       expect(confirm.body.data.user.phoneVerifiedAt).toBeTruthy();
+    });
+  });
+
+  describe('phone codes switched off (the current default): email only', () => {
+    beforeAll(() => {
+      env.SMS_VERIFICATION_ENABLED = false;
+    });
+    afterAll(() => {
+      env.SMS_VERIFICATION_ENABLED = true;
+    });
+
+    test('the sign-up form is told only email codes are available', async () => {
+      const res = await request(app).get('/api/auth/verification-config');
+      expect(res.body.data.channels).toEqual({ SMS: false, EMAIL: true });
+    });
+
+    test('sign-up needs an email and the code goes by email (no SMS is ever sent)', async () => {
+      const phone = nextPhone();
+      created.phones.add(phone);
+      const noEmail = await request(app).post('/api/auth/register/start').send({ phone, channel: 'SMS' });
+      expect(noEmail.statusCode).toBe(400);
+      expect(noEmail.body.errors[0].code).toBe('EMAIL_REQUIRED');
+
+      const email = `emailonly.${Date.now()}@example.ug`;
+      created.emails.add(email);
+      const start = await request(app).post('/api/auth/register/start').send({ phone, email, channel: 'SMS' });
+      expect(start.statusCode).toBe(200);
+      expect(start.body.data.channel).toBe('EMAIL');
+      expect(await prisma.otpCode.count({ where: { phone } })).toBe(0);
+
+      const reg = await request(app)
+        .post('/api/auth/register')
+        .send({ fullName: 'Email Only', phone, email, password: 'StrongPass123', code: start.body.data.devCode });
+      expect(reg.statusCode).toBe(201);
+      const db = await prisma.user.findUnique({ where: { phone } });
+      expect(db.emailVerifiedAt).not.toBeNull();
+      expect(db.phoneVerifiedAt).toBeNull();
+    });
+
+    test('forgot password with a phone number sends the code to the verified email', async () => {
+      const phone = nextPhone();
+      const email = `reset.${Date.now()}@example.ug`;
+      created.phones.add(phone);
+      created.emails.add(email);
+      const start = await request(app).post('/api/auth/register/start').send({ phone, email });
+      await request(app).post('/api/auth/register').send({ fullName: 'Reset Me', phone, email, password: 'StrongPass123', code: start.body.data.devCode }).expect(201);
+      await clearCooldown(email);
+
+      const forgot = await request(app).post('/api/auth/password/forgot').send({ identifier: localOf(phone) });
+      expect(forgot.statusCode).toBe(200);
+      expect(forgot.body.data.channel).toBe('EMAIL');
+      expect(forgot.body.data.sentTo).not.toContain('@'); // never reveals the address
+      expect(await prisma.otpCode.count({ where: { phone, purpose: 'PASSWORD_RESET' } })).toBe(0);
+
+      const reset = await request(app).post('/api/auth/password/reset').send({ identifier: phone, code: forgot.body.data.devCode, password: 'NewPassword789' });
+      expect(reset.statusCode).toBe(200);
+      await request(app).post('/api/auth/login').send({ phone, password: 'NewPassword789' }).expect(200);
+    });
+
+    test('phone verification and phone changes say "coming soon" instead of failing', async () => {
+      const phone = nextPhone();
+      const email = `soon.${Date.now()}@example.ug`;
+      created.phones.add(phone);
+      created.emails.add(email);
+      const start = await request(app).post('/api/auth/register/start').send({ phone, email });
+      const reg = await request(app).post('/api/auth/register').send({ fullName: 'Soon', phone, email, password: 'StrongPass123', code: start.body.data.devCode });
+      const token = reg.body.data.token;
+      const verify = await request(app).post('/api/auth/verify/start').set('Authorization', `Bearer ${token}`).send({ channel: 'SMS' });
+      expect(verify.statusCode).toBe(503);
+      expect(verify.body.errors[0].code).toBe('SMS_DISABLED');
+      const change = await request(app)
+        .post('/api/auth/contact/change/start')
+        .set('Authorization', `Bearer ${token}`)
+        .send({ channel: 'SMS', value: nextPhone(), currentPassword: 'StrongPass123' });
+      expect(change.body.errors[0].code).toBe('SMS_DISABLED');
+      await request(app).post('/api/auth/otp/request').send({ phone: localOf(nextPhone()) }).expect(503);
     });
   });
 

@@ -93,7 +93,8 @@ async function deliverNotice(channel, target, notice) {
 
 /** Is a delivery channel usable right now? (LOG only counts outside production.) */
 function channelAvailable(channel) {
-  if (channel === 'SMS') return messaging.smsConfigured() || env.NODE_ENV !== 'production';
+  // Phone codes are switched off until SMS_VERIFICATION_ENABLED=true.
+  if (channel === 'SMS') return env.SMS_VERIFICATION_ENABLED && (messaging.smsConfigured() || env.NODE_ENV !== 'production');
   return messaging.emailConfigured() || env.NODE_ENV !== 'production';
 }
 
@@ -138,7 +139,7 @@ async function issueOtp({ purpose, channel, target, userId = null, ctx = {}, dec
   if (!channelAvailable(channel)) {
     throw codedError(
       channel === 'SMS'
-        ? 'SMS verification is temporarily unavailable. Please use your email instead or try again later.'
+        ? 'Verification codes are sent by email for now. Please use your email address.'
         : 'Email verification is temporarily unavailable. Please use your phone number instead or try again later.',
       503,
       'OTP_CHANNEL_UNAVAILABLE'
@@ -280,6 +281,7 @@ async function applyDeliveryReport(providerRef, status) {
 // codes not tied to an account.
 // ------------------------------------------------------------
 async function requestOtp(phone, ctx = {}) {
+  if (!channelAvailable('SMS')) throw codedError('Phone verification is coming soon. Verification codes are sent by email for now.', 503, 'SMS_DISABLED');
   return issueOtp({ purpose: 'VERIFY_PHONE', channel: 'SMS', target: phone, ctx });
 }
 

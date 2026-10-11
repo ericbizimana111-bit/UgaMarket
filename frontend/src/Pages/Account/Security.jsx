@@ -40,6 +40,15 @@ const Security = () => {
 
   const [consents, setConsents] = useState(null);
   const [consentBusy, setConsentBusy] = useState(false);
+  // Phone (SMS) codes are switched off for now.
+  const [smsCodes, setSmsCodes] = useState(false);
+
+  useEffect(() => {
+    apiClient
+      .get('/auth/verification-config')
+      .then((res) => setSmsCodes(res?.data?.channels?.SMS === true))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     apiClient
@@ -205,17 +214,23 @@ const Security = () => {
           <div className="sec__info">
             <strong>{t('phoneLabel')}</strong>
             <span>{user?.phone}</span>
-            {status(Boolean(user?.phoneVerifiedAt))}
+            {smsCodes || user?.phoneVerifiedAt ? status(Boolean(user?.phoneVerifiedAt)) : null}
           </div>
           <div className="sec__actions">
-            {!user?.phoneVerifiedAt && (
-              <button type="button" className="btn btn-primary btn-sm" onClick={() => startVerify('SMS')} disabled={busy}>
-                {t('verifyNow')}
-              </button>
+            {smsCodes ? (
+              <>
+                {!user?.phoneVerifiedAt && (
+                  <button type="button" className="btn btn-primary btn-sm" onClick={() => startVerify('SMS')} disabled={busy}>
+                    {t('verifyNow')}
+                  </button>
+                )}
+                <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setEditing(editing === 'SMS' ? null : 'SMS'); setNewValue(''); setError(''); }}>
+                  {t('change')}
+                </button>
+              </>
+            ) : (
+              <small className="input-hint">{t('phoneVerifySoon')}</small>
             )}
-            <button type="button" className="btn btn-secondary btn-sm" onClick={() => { setEditing(editing === 'SMS' ? null : 'SMS'); setNewValue(''); setError(''); }}>
-              {t('change')}
-            </button>
           </div>
         </div>
 

@@ -20,7 +20,7 @@ const AccountLayout = () => {
     { to: '/account/messages', label: t('messages'), Icon: MessageCircle, count: unreadMessages },
     { to: '/account/notifications', label: t('notifications'), Icon: Bell, count: unreadNotifications },
     { to: '/account/addresses', label: t('addresses'), Icon: MapPin },
-    { to: '/account/security', label: t('securityTitle'), Icon: ShieldCheck, alert: !user?.phoneVerifiedAt }
+    { to: '/account/security', label: t('securityTitle'), Icon: ShieldCheck, alert: !user?.emailVerifiedAt }
   ];
 
   const doLogout = () => {
@@ -69,11 +69,12 @@ const AccountLayout = () => {
 
         <main className="account__content">
           {/* Accounts created before verification existed, or Google sign-ups */}
-          {user && !user.phoneVerifiedAt && (
+          {user && !user.emailVerifiedAt && (
             <div className="alert alert-warning account__verify" role="status">
               <AlertTriangle size={16} aria-hidden="true" />
               <span>
-                {t('verifyPhoneBanner')} <Link to="/account/security">{t('verifyNow')}</Link>
+                {user.email ? t('verifyEmailBanner') : t('addEmailBanner')}{' '}
+                <Link to="/account/security">{user.email ? t('verifyNow') : t('add')}</Link>
               </span>
             </div>
           )}

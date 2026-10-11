@@ -83,11 +83,17 @@ function shopUrl(path = '') {
  * account, the owner gets a "you already have an account" notice instead of
  * a code (nothing tells the requester).
  */
-async function startSignup({ phone, email, channel = 'SMS' }, ctx = {}) {
+/** Channel actually used: email whenever phone codes are switched off. */
+function signupChannel(channel) {
+  return otp.channelAvailable('SMS') ? channel || 'SMS' : 'EMAIL';
+}
+
+async function startSignup({ phone, email, channel }, ctx = {}) {
+  channel = signupChannel(channel);
   const normalizedPhone = requirePhone(phone);
   const normalizedEmail = normalizeEmail(email);
   if (channel === 'EMAIL' && !normalizedEmail) {
-    throw new AppError('Enter your email address to receive the code by email.', 400);
+    throw codedError('Enter your email address — we send your verification code by email.', 400, 'EMAIL_REQUIRED');
   }
   const target = channel === 'EMAIL' ? normalizedEmail : normalizedPhone;
 
@@ -127,7 +133,8 @@ async function startSignup({ phone, email, channel = 'SMS' }, ctx = {}) {
  * Step 2: create the account. When verification is required, `code` must be
  * the sign-up code sent to `channel`.
  */
-async function registerUser({ fullName, phone, email, password, code, channel = 'SMS' }, ctx = {}) {
+async function registerUser({ fullName, phone, email, password, code, channel }, ctx = {}) {
+  channel = signupChannel(channel);
   const normalizedPhone = requirePhone(phone);
   const normalizedEmail = normalizeEmail(email);
 
@@ -299,6 +306,22 @@ function parseIdentifier(identifier) {
   return { channel: 'SMS', target: phone.normalized };
 }
 
+/**
+ * Where a recovery code goes. With phone codes switched off, a phone number
+ * identifies the account and the code is sent to its VERIFIED email.
+ * Returns { channel, target, user } (user/target null when nothing matches).
+ */
+async function resolveRecovery(identifier) {
+  const parsed = parseIdentifier(identifier);
+  if (parsed.channel === 'SMS' && !otp.channelAvailable('SMS')) {
+    const user = await prisma.user.findUnique({ where: { phone: parsed.target }, select: { id: true, isActive: true, email: true, emailVerifiedAt: true } });
+    if (user && user.isActive && user.email && user.emailVerifiedAt) return { channel: 'EMAIL', target: user.email, user };
+    return { channel: 'EMAIL', target: null, user: null, lookup: parsed.target };
+  }
+  const user = await findRecoveryAccount(parsed);
+  return { ...parsed, user };
+}
+
 async function findRecoveryAccount({ channel, target }) {
   const user =
     channel === 'SMS'
@@ -309,8 +332,10 @@ async function findRecoveryAccount({ channel, target }) {
 
 /** Always resolves with the same generic answer. */
 async function requestPasswordReset({ identifier }, ctx = {}) {
-  const { channel, target } = parseIdentifier(identifier);
-  const user = await findRecoveryAccount({ channel, target });
+  const resolved = await resolveRecovery(identifier);
+  const { channel, user } = resolved;
+  // No match: a decoy keyed on what was typed, so timing and rate limits look the same.
+  const target = resolved.target || resolved.lookup || parseIdentifier(identifier).target;
   await recordSecurityEvent({ userId: user?.id || null, type: SECURITY_EVENTS.PASSWORD_RESET_REQUESTED, target, ctx, metadata: { channel, matched: Boolean(user) } });
   const result = await otp.issueOtp({
     purpose: 'PASSWORD_RESET',
@@ -322,9 +347,10 @@ async function requestPasswordReset({ identifier }, ctx = {}) {
     swallowDeliveryErrors: true,
   });
   return {
-    message: 'If an account matches these details, we have sent a reset code to it.',
+    message: 'If an account matches these details, we have sent a reset code to the email address on that account.',
     channel,
-    sentTo: result.sentTo,
+    // Never echo where a code went (that would confirm the account exists).
+    sentTo: channel === 'EMAIL' && parseIdentifier(identifier).channel === 'SMS' ? 'the email address on your account' : result.sentTo,
     expiresInSeconds: result.expiresInSeconds,
     resendInSeconds: result.resendInSeconds,
     ...(result.devCode && { devCode: result.devCode }),
@@ -332,7 +358,10 @@ async function requestPasswordReset({ identifier }, ctx = {}) {
 }
 
 async function resetPassword({ identifier, code, password }, ctx = {}) {
-  const { channel, target } = parseIdentifier(identifier);
+  const resolved = await resolveRecovery(identifier);
+  const { channel } = resolved;
+  const target = resolved.target;
+  if (!target) throw codedError('Invalid or expired verification code', 400, 'OTP_EXPIRED');
   const record = await otp.verifyOtpCode({ purpose: 'PASSWORD_RESET', target, code, ctx });
   const user = record.userId ? await prisma.user.findUnique({ where: { id: record.userId }, select: { id: true, isActive: true, phone: true, email: true } }) : null;
   // The account must still own the destination the code was sent to.
@@ -387,6 +416,7 @@ async function startContactVerification(userId, { channel }, ctx = {}) {
     return otp.issueOtp({ purpose: 'VERIFY_EMAIL', channel: 'EMAIL', target: user.email, userId, ctx });
   }
   if (user.phoneVerifiedAt) throw codedError('Your phone number is already verified.', 409, 'ALREADY_VERIFIED');
+  if (!otp.channelAvailable('SMS')) throw codedError('Phone verification is coming soon. Please verify your email address instead.', 503, 'SMS_DISABLED');
   return otp.issueOtp({ purpose: 'VERIFY_PHONE', channel: 'SMS', target: user.phone, userId, ctx });
 }
 
@@ -419,6 +449,9 @@ function normalizeContact(channel, value) {
 async function startContactChange(userId, { channel, value, currentPassword }, ctx = {}) {
   const user = await loadUserForSecurity(userId);
   const target = normalizeContact(channel, value);
+  if (channel === 'SMS' && !otp.channelAvailable('SMS')) {
+    throw codedError('Changing your phone number needs SMS verification, which is coming soon. Please contact support if you need to change it now.', 503, 'SMS_DISABLED');
+  }
   if (channel === 'SMS') await checkCurrentPassword(user, currentPassword);
   if ((channel === 'EMAIL' && user.email === target) || (channel === 'SMS' && user.phone === target)) {
     throw new AppError(channel === 'EMAIL' ? 'This is already your email address.' : 'This is already your phone number.', 400);
