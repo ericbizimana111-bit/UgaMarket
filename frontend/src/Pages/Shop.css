@@ -107,7 +107,7 @@
 }
 
 .slide--green {
-  background: #1c5233;
+  background: var(--primary-deep);
 }
 .slide--ink {
   background: #1d2a26;
@@ -150,7 +150,7 @@
 
 .slide__cta {
   background: #fff;
-  color: var(--ink);
+  color: #0f172a;
 }
 
 .slide__cta:hover {
@@ -536,7 +536,7 @@
 
 .cta__primary {
   background: #fff;
-  color: var(--ink);
+  color: #0f172a;
 }
 
 .cta__primary:hover {

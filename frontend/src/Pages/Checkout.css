@@ -440,3 +440,74 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── Consent, policies and help ─────────────────────────── */
+.co-consent {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 4px 0 14px;
+}
+
+.co-check {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 12px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  color: var(--text);
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  cursor: pointer;
+}
+
+.co-check input {
+  flex: 0 0 auto;
+  width: 20px;
+  height: 20px;
+  margin-top: 1px;
+  accent-color: var(--primary);
+  cursor: pointer;
+}
+
+.co-check a,
+.co-help a,
+.co-policies a {
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.co-check--error {
+  border-color: var(--danger);
+  background: var(--danger-soft);
+}
+
+.co-policies {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 14px;
+  margin-top: 14px;
+  font-size: var(--text-sm);
+}
+
+.co-policies a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 32px;
+}
+
+.co-help {
+  margin-top: 12px;
+  padding: 12px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-line);
+  border-radius: var(--radius-sm);
+}
+.co-check .req { color: var(--danger); }

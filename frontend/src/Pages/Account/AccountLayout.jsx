@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Link, NavLink, Outlet, useNavigate } from 'react-router-dom';
-import { Bell, LogOut, MapPin, MessageCircle, Package, ShoppingCart, Wrench } from 'lucide-react';
+import { AlertTriangle, Bell, LogOut, MapPin, MessageCircle, Package, ShieldCheck, ShoppingCart, Wrench } from 'lucide-react';
 import { useAuth } from '../../Context/AuthContext';
 import { useLanguage } from '../../Context/LanguageContext';
 import { useRealtime } from '../../Context/RealtimeContext';
@@ -19,7 +19,8 @@ const AccountLayout = () => {
     { to: '/account/services', label: t('myServices'), Icon: Wrench },
     { to: '/account/messages', label: t('messages'), Icon: MessageCircle, count: unreadMessages },
     { to: '/account/notifications', label: t('notifications'), Icon: Bell, count: unreadNotifications },
-    { to: '/account/addresses', label: t('addresses'), Icon: MapPin }
+    { to: '/account/addresses', label: t('addresses'), Icon: MapPin },
+    { to: '/account/security', label: t('securityTitle'), Icon: ShieldCheck, alert: !user?.phoneVerifiedAt }
   ];
 
   const doLogout = () => {
@@ -47,10 +48,11 @@ const AccountLayout = () => {
           </div>
 
           <nav className="account__nav" aria-label={t('account')}>
-            {links.map(({ to, label, Icon, count }) => (
+            {links.map(({ to, label, Icon, count, alert }) => (
               <NavLink key={to} to={to} className={({ isActive }) => `account__link ${isActive ? 'account__link--active' : ''}`}>
                 <Icon size={17} aria-hidden="true" /> {label}
                 {count > 0 && <span className="account__count">{count > 99 ? '99+' : count}</span>}
+                {alert && <span className="account__dot" aria-label={t('securityNeedsAttention')} />}
               </NavLink>
             ))}
             <Link to="/catalog" className="account__link account__link--extra">
@@ -66,6 +68,15 @@ const AccountLayout = () => {
         </aside>
 
         <main className="account__content">
+          {/* Accounts created before verification existed, or Google sign-ups */}
+          {user && !user.phoneVerifiedAt && (
+            <div className="alert alert-warning account__verify" role="status">
+              <AlertTriangle size={16} aria-hidden="true" />
+              <span>
+                {t('verifyPhoneBanner')} <Link to="/account/security">{t('verifyNow')}</Link>
+              </span>
+            </div>
+          )}
           <Outlet />
         </main>
       </div>

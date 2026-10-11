@@ -41,7 +41,7 @@
   font-size: var(--text-sm);
   font-weight: 600;
   color: #fff;
-  background: var(--ink);
+  background: var(--chip-dark);
   border-radius: 4px;
 }
 

@@ -9,9 +9,13 @@ import {
   MapPin,
   Menu,
   MessageCircle,
+  LifeBuoy,
+  LogIn,
   Package,
+  Phone,
+  ShieldCheck,
   ShoppingCart,
-  User,
+  UserPlus,
   Wrench,
   X
 } from 'lucide-react';
@@ -25,6 +29,8 @@ import { iconFor } from '../../utils/categoryIcons';
 import SearchBox from '../SearchBox/SearchBox';
 import LanguageSwitcher from '../LanguageSwitcher/LanguageSwitcher';
 import ConfirmDialog from '../ui/ConfirmDialog';
+import ThemePicker, { ThemePanel } from '../ThemePicker/ThemePicker';
+import { useCall } from '../../Context/CallContext';
 import './Navbar.css';
 
 const LOGO_SRC = `${process.env.PUBLIC_URL}/logo.png`;
@@ -39,6 +45,7 @@ const Navbar = () => {
   const { unreadNotifications, unreadMessages } = useRealtime();
   const location = useLocation();
   const navigate = useNavigate();
+  const { startCall } = useCall();
 
   const [drawerOpen, setDrawerOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -112,6 +119,11 @@ const Navbar = () => {
     { to: '/how-it-works', label: t('howItWorksShort') }
   ];
 
+  // After signing in, come back to the page the customer was on.
+  const back = location.pathname === '/' || location.pathname.startsWith('/login') ? '' : encodeURIComponent(location.pathname);
+  const loginHref = back ? `/login?redirect=${back}` : '/login';
+  const signupHref = back ? `/login?signup=true&redirect=${back}` : '/login?signup=true';
+
   const badge = (n) => (n > 0 ? <span className="um-icon-badge">{n > 99 ? '99+' : n}</span> : null);
 
   return (
@@ -125,6 +137,9 @@ const Navbar = () => {
         <div className="container um-topbar__inner">
           <p className="um-topbar__msg">{store?.announcement || t('topbarMessage')}</p>
           <div className="um-topbar__right">
+            <Link to="/help" className="um-topbar__link">
+              <LifeBuoy size={14} aria-hidden="true" /> {t('helpCenter')}
+            </Link>
             <Link to="/how-it-works" className="um-topbar__link">
               <HelpCircle size={14} aria-hidden="true" /> {t('howItWorksShort')}
             </Link>
@@ -157,13 +172,26 @@ const Navbar = () => {
           </div>
 
           <div className="um-header__actions">
+            <span className="um-header__theme">
+              <ThemePicker />
+            </span>
             {isAuthenticated && (
               <>
-                <Link to="/account/messages" className="um-icon-link" aria-label={t('messagesWithCount', { count: unreadMessages })}>
+                <Link
+                  to="/account/messages"
+                  className="um-icon-link um-icon-link--messages"
+                  aria-label={t('messagesWithCount', { count: unreadMessages })}
+                  title={t('messages')}
+                >
                   <MessageCircle size={21} aria-hidden="true" />
                   {badge(unreadMessages)}
                 </Link>
-                <Link to="/account/notifications" className="um-icon-link" aria-label={t('notificationsWithCount', { count: unreadNotifications })}>
+                <Link
+                  to="/account/notifications"
+                  className="um-icon-link"
+                  aria-label={t('notificationsWithCount', { count: unreadNotifications })}
+                  title={t('notifications')}
+                >
                   <Bell size={21} aria-hidden="true" />
                   {badge(unreadNotifications)}
                 </Link>
@@ -210,6 +238,9 @@ const Navbar = () => {
                       <Bell size={16} aria-hidden="true" /> {t('notifications')}
                       {unreadNotifications > 0 && <span className="um-dropdown__count">{unreadNotifications}</span>}
                     </Link>
+                    <Link to="/account/security" role="menuitem" className="um-dropdown__item">
+                      <ShieldCheck size={16} aria-hidden="true" /> {t('securityTitle')}
+                    </Link>
                     <button
                       type="button"
                       role="menuitem"
@@ -222,15 +253,16 @@ const Navbar = () => {
                 )}
               </div>
             ) : (
-              <Link to="/login" className="um-account-btn um-account-desktop">
-                <span className="um-avatar um-avatar--ghost">
-                  <User size={18} aria-hidden="true" />
-                </span>
-                <span className="um-account-btn__text">
-                  <small>{t('helloGuest')}</small>
-                  <strong>{t('signInOrRegister')}</strong>
-                </span>
-              </Link>
+              <div className="um-auth-btns">
+                <Link to={loginHref} className="btn btn-secondary btn-sm um-auth-btns__login">
+                  <LogIn size={16} aria-hidden="true" />
+                  <span>{t('loginShort')}</span>
+                </Link>
+                <Link to={signupHref} className="btn btn-primary btn-sm um-auth-btns__signup">
+                  <UserPlus size={16} aria-hidden="true" />
+                  <span>{t('signup')}</span>
+                </Link>
+              </div>
             )}
 
             <Link
@@ -422,8 +454,35 @@ const Navbar = () => {
                 <Bell size={16} aria-hidden="true" /> {t('notifications')}
                 {unreadNotifications > 0 && <span className="um-dropdown__count">{unreadNotifications}</span>}
               </Link>
+              <Link to="/account/security" className="um-drawer__link">
+                <ShieldCheck size={16} aria-hidden="true" /> {t('securityTitle')}
+              </Link>
             </div>
           )}
+
+          <div className="um-drawer__section">
+            <span className="um-drawer__label">{t('helpAndSupport')}</span>
+            <Link to="/help" className="um-drawer__link">
+              <LifeBuoy size={16} aria-hidden="true" /> {t('helpCenter')}
+            </Link>
+            {isAuthenticated && (
+              <button
+                type="button"
+                className="um-drawer__link"
+                onClick={() => {
+                  setDrawerOpen(false);
+                  startCall();
+                }}
+              >
+                <Phone size={16} aria-hidden="true" /> {t('callSupport')}
+              </button>
+            )}
+          </div>
+
+          <div className="um-drawer__section">
+            <span className="um-drawer__label">{t('appearance')}</span>
+            <ThemePanel />
+          </div>
 
           <div className="um-drawer__section">
             <span className="um-drawer__label">{t('language')}</span>

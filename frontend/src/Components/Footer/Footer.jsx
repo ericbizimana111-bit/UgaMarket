@@ -5,6 +5,9 @@ import { useLanguage } from '../../Context/LanguageContext';
 import useCategories from '../../utils/useCategories';
 import useStoreInfo, { formatUgPhone } from '../../utils/useStoreInfo';
 import LanguageSwitcher from '../LanguageSwitcher/LanguageSwitcher';
+import NewsletterForm from './NewsletterForm';
+import { openCookieSettings } from '../../utils/consent';
+import { HELP_PHONE_DISPLAY, HELP_PHONE_TEL } from '../../utils/legal';
 import './Footer.css';
 
 const LOGO_SRC = `${process.env.PUBLIC_URL}/logo.png`;
@@ -20,6 +23,8 @@ const Footer = () => {
   return (
     <footer className="um-footer">
       <div className="container">
+        <NewsletterForm />
+
         <div className="um-footer__grid">
           <div className="um-footer__brand">
             <Link to="/" aria-label={t('brandName')}>
@@ -86,10 +91,13 @@ const Footer = () => {
             <h4>{t('footerSupport')}</h4>
             <ul>
               <li>
+                <Link to="/help">{t('helpCenter')}</Link>
+              </li>
+              <li>
                 <Link to="/how-it-works">{t('howItWorks')}</Link>
               </li>
               <li>
-                <Link to="/how-it-works">{t('footerDepositExplained')}</Link>
+                <Link to="/commitment-rules">{t('commitmentRules')}</Link>
               </li>
               <li>
                 <Link to="/services">{t('bookHomeService')}</Link>
@@ -102,6 +110,9 @@ const Footer = () => {
               <span>
                 <MapPin size={14} aria-hidden="true" /> {store?.addressText || t('footerLocation')}
               </span>
+              <a href={HELP_PHONE_TEL}>
+                <Phone size={14} aria-hidden="true" /> {t('helpLine')}: {HELP_PHONE_DISPLAY}
+              </a>
               {store?.supportPhone && (
                 <a href={`tel:${store.supportPhone}`}>
                   <Phone size={14} aria-hidden="true" /> {formatUgPhone(store.supportPhone)}
@@ -134,6 +145,16 @@ const Footer = () => {
             ))}
           </ul>
         </div>
+
+        <nav className="um-footer__legal" aria-label={t('legalRelated')}>
+          <Link to="/terms">{t('termsTitle')}</Link>
+          <Link to="/privacy">{t('privacyPolicy')}</Link>
+          <Link to="/security">{t('securityInfo')}</Link>
+          <Link to="/cookies">{t('cookiePolicy')}</Link>
+          <button type="button" onClick={openCookieSettings}>
+            {t('cookieSettings')}
+          </button>
+        </nav>
 
         <div className="um-footer__bottom">
           <p>{t('footerRights', { year: new Date().getFullYear() })}</p>

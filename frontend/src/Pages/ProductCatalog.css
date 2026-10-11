@@ -326,7 +326,7 @@
   position: fixed;
   inset: 0;
   z-index: 1900;
-  background: rgba(15, 23, 42, 0.5);
+  background: var(--overlay);
   opacity: 0;
   visibility: hidden;
   transition: opacity var(--base) var(--ease), visibility var(--base);

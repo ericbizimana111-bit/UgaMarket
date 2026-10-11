@@ -7,14 +7,18 @@ import { useLanguage } from '../Context/LanguageContext';
  * and FAQs (GET /api/store). The header, footer and help page all need it, so
  * one request per language is cached for the lifetime of the page.
  */
-const EMPTY = { store: null, faqs: [] };
+const EMPTY = { store: null, faqs: [], commitment: null };
 const cache = new Map(); // lang -> Promise<{ store, faqs }>
 
 function fetchStoreInfo(lang) {
   if (!cache.has(lang)) {
     const promise = apiClient
       .get(`/store?lang=${lang}`)
-      .then((res) => ({ store: res?.data?.store || null, faqs: Array.isArray(res?.data?.faqs) ? res.data.faqs : [] }))
+      .then((res) => ({
+        store: res?.data?.store || null,
+        faqs: Array.isArray(res?.data?.faqs) ? res.data.faqs : [],
+        commitment: res?.data?.commitment || null
+      }))
       .catch(() => {
         cache.delete(lang); // allow a retry on the next mount
         return EMPTY;
@@ -44,5 +48,5 @@ export default function useStoreInfo() {
     };
   }, [currentLang]);
 
-  return { store: state.store, faqs: state.faqs, loading: state.lang !== currentLang };
+  return { store: state.store, faqs: state.faqs, commitment: state.commitment, loading: state.lang !== currentLang };
 }

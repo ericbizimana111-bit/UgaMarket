@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { ArrowLeft, MessageCircle, Package, Phone, Search, Send, Wrench } from 'lucide-react';
+import { ArrowLeft, Check, CheckCheck, MessageCircle, Package, Phone, Search, Send, Wrench } from 'lucide-react';
 import api from '../../services/api';
 import { useToast } from '../../components/feedback/Toast';
 import StatusBadge from '../../components/ui/StatusBadge';
@@ -16,6 +16,39 @@ import './MessagesPage.css';
  *   POST /api/admin/chat/conversations/:id/messages
  *   POST /api/admin/chat/conversations/:id/read
  */
+/** WhatsApp-style receipt on staff messages: sent / delivered / read (green). */
+function Receipt({ message }) {
+  if (message.readAt) {
+    return (
+      <span className="msg__tick msg__tick--read" title="Read by the customer" aria-label="Read">
+        <CheckCheck size={15} strokeWidth={2.4} aria-hidden="true" />
+      </span>
+    );
+  }
+  return (
+    <span className="msg__tick" title={message.deliveredAt ? 'Delivered' : 'Sent'} aria-label={message.deliveredAt ? 'Delivered' : 'Sent'}>
+      {message.deliveredAt ? <CheckCheck size={15} strokeWidth={2.4} aria-hidden="true" /> : <Check size={15} strokeWidth={2.4} aria-hidden="true" />}
+    </span>
+  );
+}
+
+/** Stamp a customer-side receipt on staff messages sent up to that moment. */
+function applyReceipt(thread, data, field) {
+  if (!thread || !data?.[field]) return thread;
+  const limit = new Date(data[field]).getTime();
+  let changed = false;
+  const messages = thread.messages.map((m) => {
+    if (m.senderType !== 'ADMIN' || new Date(m.createdAt).getTime() > limit) return m;
+    const patch = {};
+    if (!m.deliveredAt) patch.deliveredAt = data[field];
+    if (field === 'readAt' && !m.readAt) patch.readAt = data[field];
+    if (!Object.keys(patch).length) return m;
+    changed = true;
+    return { ...m, ...patch };
+  });
+  return changed ? { ...thread, messages } : thread;
+}
+
 export default function MessagesPage() {
   const [searchParams, setSearchParams] = useSearchParams();
   const { showToast } = useToast();
@@ -107,6 +140,14 @@ export default function MessagesPage() {
         api.post(`/admin/chat/conversations/${activeId}/read`).then(refresh).catch(() => {});
       }
     }
+  });
+
+  useRealtimeEvent('chat:delivered', (data) => {
+    if (data?.by === 'CUSTOMER' && data.conversationId === activeId) setThread((prev) => applyReceipt(prev, data, 'deliveredAt'));
+  });
+
+  useRealtimeEvent('chat:read', (data) => {
+    if (data?.by === 'CUSTOMER' && data.conversationId === activeId) setThread((prev) => applyReceipt(prev, data, 'readAt'));
   });
 
   const select = (id) => {
@@ -222,7 +263,10 @@ export default function MessagesPage() {
                     </Link>
                   )}
                   <p>{m.body}</p>
-                  <time title={formatDateTime(m.createdAt)}>{formatRelative(m.createdAt)}</time>
+                  <span className="msg__meta">
+                    <time title={formatDateTime(m.createdAt)}>{formatRelative(m.createdAt)}</time>
+                    {m.senderType === 'ADMIN' && <Receipt message={m} />}
+                  </span>
                 </div>
               ))}
               {thread.messages.length === 0 && <p className="inbox__empty">No messages yet — say hello.</p>}

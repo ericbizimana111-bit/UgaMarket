@@ -1,6 +1,7 @@
 import React from 'react';
 import { render, screen, act } from '@testing-library/react';
 import { LanguageProvider, useLanguage } from './LanguageContext';
+import { saveConsent } from '../utils/consent';
 
 const TestConsumer = () => {
   const { currentLang, changeLanguage, t, getLocalizedField } = useLanguage();
@@ -23,6 +24,8 @@ const TestConsumer = () => {
 describe('LanguageContext', () => {
   beforeEach(() => {
     localStorage.clear();
+    sessionStorage.clear();
+    document.cookie = 'um_consent=; Max-Age=0; Path=/';
   });
 
   test('defaults to English and returns English brand and tagline', () => {
@@ -51,6 +54,23 @@ describe('LanguageContext', () => {
 
     expect(screen.getByTestId('current-lang').textContent).toBe('lg');
     expect(screen.getByTestId('localized-item').textContent).toBe('Ebijanjaalo');
+    // No preference-cookie consent yet: remembered for this visit only.
+    expect(sessionStorage.getItem('ugamarket_lang')).toBe('lg');
+    expect(localStorage.getItem('ugamarket_lang')).toBeNull();
+  });
+
+  test('remembers the language across visits once preferences are allowed', () => {
+    saveConsent({ preferences: true });
+    render(
+      <LanguageProvider>
+        <TestConsumer />
+      </LanguageProvider>
+    );
+
+    act(() => {
+      screen.getByTestId('btn-lg').click();
+    });
+
     expect(localStorage.getItem('ugamarket_lang')).toBe('lg');
   });
 });

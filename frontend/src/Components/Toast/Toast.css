@@ -16,7 +16,7 @@
   gap: 10px;
   padding: 12px 12px 12px 14px;
   color: #fff;
-  background: var(--ink);
+  background: var(--chip-dark);
   border-radius: var(--radius);
   border-left: 4px solid var(--faint);
   font-size: var(--text-sm);

@@ -1,0 +1,118 @@
+.sec {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.sec h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 1.1rem;
+}
+
+.sec .section-desc {
+  margin: 4px 0 8px;
+}
+
+.sec__row {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+}
+
+.sec__row > svg {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.sec__row--plain {
+  border-top: 0;
+}
+
+.sec__info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 3px;
+  flex: 1;
+  min-width: 0;
+}
+
+.sec__info span {
+  overflow-wrap: anywhere;
+}
+
+.sec__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.sec__form {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-width: 420px;
+  padding: 4px 0 16px;
+}
+
+.sec__form .btn {
+  align-self: flex-start;
+}
+
+.sec__form .input-hint a {
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.sec__switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 52px;
+  height: 30px;
+  background: var(--line-strong);
+  border-radius: 999px;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.sec__switch span {
+  position: absolute;
+  top: 4px;
+  left: 4px;
+  width: 22px;
+  height: 22px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform var(--fast) var(--ease);
+}
+
+.sec__switch--on {
+  background: var(--primary);
+}
+
+.sec__switch--on span {
+  transform: translateX(22px);
+}
+
+.sec__links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+@media (max-width: 560px) {
+  .sec__row {
+    flex-wrap: wrap;
+  }
+
+  .sec__actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+}

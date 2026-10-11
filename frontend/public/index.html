@@ -30,6 +30,21 @@
   <link rel="preload" as="image" type="image/webp" href="%PUBLIC_URL%/hero/matooke-960.webp"
     imagesrcset="%PUBLIC_URL%/hero/matooke-560.webp 560w, %PUBLIC_URL%/hero/matooke-960.webp 960w"
     imagesizes="(max-width: 900px) 100vw, 640px" fetchpriority="high">
+  <script>
+    // Apply the saved theme before the first paint (no light flash in dark mode).
+    (function () {
+      try {
+        var raw = sessionStorage.getItem('ugamarket_theme') || localStorage.getItem('ugamarket_theme');
+        var t = raw ? JSON.parse(raw) : {};
+        var accents = ['green', 'blue', 'purple', 'teal', 'orange', 'rose', 'midnight'];
+        var mode = t.mode === 'light' || t.mode === 'dark' ? t.mode : (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light');
+        document.documentElement.setAttribute('data-theme', mode);
+        document.documentElement.setAttribute('data-accent', accents.indexOf(t.accent) >= 0 ? t.accent : 'green');
+      } catch (e) {
+        document.documentElement.setAttribute('data-theme', 'light');
+      }
+    })();
+  </script>
   <title>UgaMarket — home to home | Shop &amp; Home Services in Uganda</title>
 </head>
 

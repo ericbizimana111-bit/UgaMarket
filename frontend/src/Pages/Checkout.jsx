@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { AlertTriangle, BadgeCheck, Check, Clock, Lock, MapPin, Phone, Plus, Route, ShieldCheck, Smartphone, Truck, X } from 'lucide-react';
+import { AlertTriangle, BadgeCheck, Check, Clock, FileText, LifeBuoy, Lock, MapPin, Phone, Plus, Route, ShieldCheck, Smartphone, Truck, Wallet, X } from 'lucide-react';
 import apiClient from '../api/client';
 import { useAuth } from '../Context/AuthContext';
 import { useCart } from '../Context/CartContext';
@@ -10,6 +10,7 @@ import { formatUGX } from '../utils/currency';
 import { friendlyError } from '../utils/errors';
 import { LIMITS, sanitizeMultiline } from '../utils/inputGuards';
 import { addressLabelKey, formatAddressLine } from '../utils/useLocations';
+import { HELP_PHONE_DISPLAY, HELP_PHONE_TEL, LEGAL_VERSIONS } from '../utils/legal';
 import './Checkout.css';
 
 /**
@@ -37,6 +38,10 @@ const Checkout = () => {
   const [submitting, setSubmitting] = useState(false);
   const [errorMessage, setErrorMessage] = useState(null);
   const [dataLoading, setDataLoading] = useState(true);
+  // Required: Terms + Privacy. Optional and unticked by default: marketing.
+  const [acceptTerms, setAcceptTerms] = useState(false);
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
+  const [termsError, setTermsError] = useState(false);
 
   useEffect(() => {
     if (!isAuthenticated) navigate('/login?redirect=/checkout');
@@ -108,6 +113,11 @@ const Checkout = () => {
     e.preventDefault();
     if (submitting) return;
     if (!selectedAddressId) return setErrorMessage(t('pleaseSelectAddress'));
+    if (!acceptTerms) {
+      setTermsError(true);
+      document.getElementById('co-terms')?.focus();
+      return;
+    }
 
     setSubmitting(true);
     setErrorMessage(null);
@@ -115,7 +125,11 @@ const Checkout = () => {
       const res = await apiClient.post('/orders', {
         addressId: selectedAddressId,
         ...(orderNotes.trim() ? { notes: orderNotes.trim() } : {}),
-        language: currentLang || 'en'
+        language: currentLang || 'en',
+        acceptTerms: true,
+        termsVersion: LEGAL_VERSIONS.terms,
+        privacyVersion: LEGAL_VERSIONS.privacy,
+        marketingConsent: marketingOptIn
       });
       const createdOrder = res?.data?.order || res?.data;
       if (!createdOrder?.id) throw new Error(t('noOrderId'));
@@ -422,9 +436,71 @@ const Checkout = () => {
             </div>
           </div>
 
+          <div className="co-consent">
+            <label className={`co-check ${termsError ? 'co-check--error' : ''}`}>
+              <input
+                id="co-terms"
+                type="checkbox"
+                checked={acceptTerms}
+                onChange={(e) => {
+                  setAcceptTerms(e.target.checked);
+                  if (e.target.checked) setTermsError(false);
+                }}
+                aria-invalid={termsError}
+                aria-describedby={termsError ? 'co-terms-err' : undefined}
+                required
+              />
+              <span>
+                {t('consentTermsPrefix')}{' '}
+                <Link to="/terms" target="_blank" rel="noopener">
+                  {t('termsTitle')}
+                </Link>{' '}
+                {t('consentAnd')}{' '}
+                <Link to="/privacy" target="_blank" rel="noopener">
+                  {t('privacyPolicy')}
+                </Link>
+                . <span className="req">*</span>
+              </span>
+            </label>
+            {termsError && (
+              <span className="field-error" id="co-terms-err" role="alert">
+                {t('consentTermsRequired')}
+              </span>
+            )}
+            <label className="co-check">
+              <input type="checkbox" checked={marketingOptIn} onChange={(e) => setMarketingOptIn(e.target.checked)} />
+              <span>
+                {t('consentMarketing')} <small className="input-hint">({t('optional')})</small>
+              </span>
+            </label>
+          </div>
+
           <button type="button" onClick={handlePlaceOrder} disabled={submitting || previewLoading || !hasAll || cartIssues.length > 0} className="btn btn-primary btn-lg btn-block">
             {submitting ? t('placingOrder') : previewLoading || (!hasAll && selectedAddressId) ? t('confirmingTotals') : !selectedAddressId ? t('pleaseSelectAddress') : t('placeOrderPay', { amount: formatUGX(commitment) })}
           </button>
+
+          <nav className="co-policies" aria-label={t('legalRelated')}>
+            <Link to="/terms" target="_blank" rel="noopener">
+              <FileText size={14} aria-hidden="true" /> {t('termsTitle')}
+            </Link>
+            <Link to="/privacy" target="_blank" rel="noopener">
+              <Lock size={14} aria-hidden="true" /> {t('privacyPolicy')}
+            </Link>
+            <Link to="/security" target="_blank" rel="noopener">
+              <ShieldCheck size={14} aria-hidden="true" /> {t('securityInfo')}
+            </Link>
+            <Link to="/commitment-rules" target="_blank" rel="noopener">
+              <Wallet size={14} aria-hidden="true" /> {t('commitmentRules')}
+            </Link>
+            <Link to="/help" target="_blank" rel="noopener">
+              <LifeBuoy size={14} aria-hidden="true" /> {t('helpCenter')}
+            </Link>
+          </nav>
+
+          <p className="co-help">
+            {t('needHelpPrefix')} <Link to="/help">{t('helpCenter')}</Link> {t('needHelpMiddle')}{' '}
+            <a href={HELP_PHONE_TEL}>{HELP_PHONE_DISPLAY}</a>.
+          </p>
 
           <ul className="checkout__secure">
             <li>

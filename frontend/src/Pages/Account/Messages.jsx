@@ -1,13 +1,60 @@
 import React, { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
-import { AlertTriangle, Headset, Package, Send, Wrench } from 'lucide-react';
+import { AlertTriangle, Check, CheckCheck, Headset, Package, Phone, Send, Wrench } from 'lucide-react';
 import apiClient from '../../api/client';
 import { useLanguage } from '../../Context/LanguageContext';
 import { useRealtime, useRealtimeEvent } from '../../Context/RealtimeContext';
 import { friendlyError } from '../../utils/errors';
+import { useCall } from '../../Context/CallContext';
 import './Messages.css';
 
 const MAX_LEN = 2000;
+
+/**
+ * WhatsApp-style receipt on the customer's own messages:
+ *   one grey tick    sent (saved by UgaMarket)
+ *   two grey ticks   delivered (reached the support team's screen)
+ *   two green ticks  read by the support team
+ */
+export const Receipt = ({ message, t }) => {
+  if (message.readAt) {
+    return (
+      <span className="tick tick--read" title={t('receiptRead')} aria-label={t('receiptRead')}>
+        <CheckCheck size={16} strokeWidth={2.4} aria-hidden="true" />
+      </span>
+    );
+  }
+  if (message.deliveredAt) {
+    return (
+      <span className="tick" title={t('receiptDelivered')} aria-label={t('receiptDelivered')}>
+        <CheckCheck size={16} strokeWidth={2.4} aria-hidden="true" />
+      </span>
+    );
+  }
+  return (
+    <span className="tick" title={t('receiptSent')} aria-label={t('receiptSent')}>
+      <Check size={16} strokeWidth={2.4} aria-hidden="true" />
+    </span>
+  );
+};
+
+/** Apply a delivered/read receipt (from the support team) to my messages. */
+function applyReceipt(messages, data, field) {
+  const at = data[field];
+  if (!at) return messages;
+  const limit = new Date(at).getTime();
+  let changed = false;
+  const next = messages.map((m) => {
+    if (m.senderType !== 'CUSTOMER' || new Date(m.createdAt).getTime() > limit) return m;
+    const patch = {};
+    if (!m.deliveredAt) patch.deliveredAt = at;
+    if (field === 'readAt' && !m.readAt) patch.readAt = at;
+    if (!Object.keys(patch).length) return m;
+    changed = true;
+    return { ...m, ...patch };
+  });
+  return changed ? next : messages;
+}
 
 /**
  * Customer <-> UgaMarket support chat.
@@ -18,7 +65,8 @@ const MAX_LEN = 2000;
  */
 const Messages = () => {
   const { t, formatDateTime } = useLanguage();
-  const { setUnreadMessages, setMessagesQuiet } = useRealtime();
+  const { setUnreadMessages, setMessagesQuiet, refreshCounts } = useRealtime();
+  const { startCall, state: callState } = useCall();
   const [searchParams] = useSearchParams();
   const [messages, setMessages] = useState([]);
   const [conversationId, setConversationId] = useState(null);
@@ -39,9 +87,13 @@ const Messages = () => {
   const stickToBottom = useRef(true);
 
   const markRead = useCallback(() => {
-    apiClient.post('/chat/read').catch(() => {});
     setUnreadMessages(0);
-  }, [setUnreadMessages]);
+    // Also clears "new message" notifications on the server: re-sync the bell.
+    apiClient
+      .post('/chat/read')
+      .then(() => refreshCounts())
+      .catch(() => {});
+  }, [setUnreadMessages, refreshCounts]);
 
   useEffect(() => {
     setMessagesQuiet(true);
@@ -77,8 +129,27 @@ const Messages = () => {
     const msg = data?.message;
     if (!msg || (conversationId && msg.conversationId !== conversationId)) return;
     setMessages((prev) => (prev.some((m) => m.id === msg.id) ? prev : [...prev, msg]));
-    if (msg.senderType === 'ADMIN') markRead();
+    if (msg.senderType === 'ADMIN' && document.visibilityState === 'visible') markRead();
   });
+
+  useRealtimeEvent('chat:delivered', (data) => {
+    if (data?.by === 'ADMIN' && (!conversationId || data.conversationId === conversationId)) {
+      setMessages((prev) => applyReceipt(prev, data, 'deliveredAt'));
+    }
+  });
+
+  useRealtimeEvent('chat:read', (data) => {
+    if (data?.by === 'ADMIN' && (!conversationId || data.conversationId === conversationId)) {
+      setMessages((prev) => applyReceipt(prev, data, 'readAt'));
+    }
+  });
+
+  // Coming back to the tab reads what arrived meanwhile.
+  useEffect(() => {
+    const onVisible = () => document.visibilityState === 'visible' && markRead();
+    document.addEventListener('visibilitychange', onVisible);
+    return () => document.removeEventListener('visibilitychange', onVisible);
+  }, [markRead]);
 
   // Keep the newest message in view unless the customer scrolled up.
   useLayoutEffect(() => {
@@ -150,10 +221,20 @@ const Messages = () => {
         <span className="chat__avatar">
           <Headset size={20} aria-hidden="true" />
         </span>
-        <div>
+        <div className="chat__head-text">
           <h2>{t('messagesTitle')}</h2>
           <p>{t('messagesSubtitle')}</p>
         </div>
+        <button
+          type="button"
+          className="btn btn-secondary chat__call"
+          onClick={startCall}
+          disabled={callState !== 'idle' && callState !== 'ended'}
+          aria-label={t('callSupport')}
+        >
+          <Phone size={18} aria-hidden="true" />
+          <span>{t('callUs')}</span>
+        </button>
       </div>
 
       {error && (
@@ -197,7 +278,10 @@ const Messages = () => {
                   </Link>
                 )}
                 <p>{m.body}</p>
-                <time dateTime={m.createdAt}>{formatDateTime(m.createdAt)}</time>
+                <span className="bubble__meta">
+                  <time dateTime={m.createdAt}>{formatDateTime(m.createdAt)}</time>
+                  {m.senderType === 'CUSTOMER' && <Receipt message={m} t={t} />}
+                </span>
               </div>
             ))}
           </>

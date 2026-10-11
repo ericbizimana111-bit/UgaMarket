@@ -52,7 +52,7 @@
   font-size: var(--text-xs);
   font-weight: 700;
   color: #fff;
-  background: var(--ink);
+  background: var(--chip-dark);
   border-radius: 999px;
 }
 

@@ -80,7 +80,7 @@ export const AuthProvider = ({ children }) => {
     }
   };
 
-  const register = async ({ fullName, phone, email, password }) => {
+  const register = async ({ fullName, phone, email, password, code, channel }) => {
     setAuthError(null);
     try {
       const payload = {
@@ -88,6 +88,7 @@ export const AuthProvider = ({ children }) => {
         phone,
         password,
         ...(email && email.trim() ? { email: email.trim() } : {}),
+        ...(code ? { code, channel: channel || 'SMS' } : {}),
       };
       const res = await apiClient.post('/auth/register', payload);
       const authToken = res?.data?.token;
@@ -99,9 +100,18 @@ export const AuthProvider = ({ children }) => {
     } catch (err) {
       const msg = err.message || 'Registration failed. Please check your details.';
       setAuthError(msg);
-      return { success: false, error: msg, status: err.status, code: err.code };
+      return { success: false, error: msg, status: err.status, code: err.code, errorCode: err.data?.errors?.[0]?.code };
     }
   };
+
+  /** Start a session from a token the API issued (password reset, phone change...). */
+  const setSession = useCallback(
+    (authToken, authUser) => {
+      if (authToken) applySession(authToken, authUser);
+      else if (authUser) setUser(authUser);
+    },
+    [applySession]
+  );
 
   /**
    * "Continue with Google". Resolves to { success:true } when signed in, or
@@ -151,6 +161,7 @@ export const AuthProvider = ({ children }) => {
         googleSignIn,
         logout,
         refreshUser,
+        setSession,
         setAuthError,
       }}
     >

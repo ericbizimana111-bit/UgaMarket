@@ -44,5 +44,5 @@
 }
 
 .um-map-pin--ink span {
-  background: var(--ink);
+  background: var(--chip-dark);
 }

@@ -179,6 +179,8 @@ async function stampReceipts(conversationId, fromSender, { read }) {
 async function markCustomerRead(userId) {
   const conversation = await getOrCreateConversation(userId);
   await prisma.conversation.update({ where: { id: conversation.id }, data: { customerUnread: 0 } });
+  // Reading the chat also reads the "new message" notifications about it.
+  await prisma.notification.updateMany({ where: { userId, type: 'NEW_MESSAGE', isRead: false }, data: { isRead: true } });
   const at = (await stampReceipts(conversation.id, 'ADMIN', { read: true })) || new Date();
   const payload = { conversationId: conversation.id, by: 'CUSTOMER', readAt: at.toISOString() };
   realtime.publish('admins', 'chat:read', payload);

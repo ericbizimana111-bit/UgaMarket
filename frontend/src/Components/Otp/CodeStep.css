@@ -1,0 +1,62 @@
+.otp {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.otp__head {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  margin-bottom: 8px;
+  padding: 12px;
+  font-size: var(--text-sm);
+  line-height: 1.5;
+  background: var(--primary-soft);
+  border: 1px solid var(--primary-line);
+  border-radius: var(--radius-sm);
+}
+
+.otp__head strong {
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.otp__icon {
+  flex: 0 0 auto;
+  color: var(--primary);
+}
+
+.otp__input {
+  font-size: 1.6rem;
+  font-weight: 700;
+  letter-spacing: 0.5em;
+  text-align: center;
+  font-variant-numeric: tabular-nums;
+}
+
+.otp .btn {
+  margin-top: 8px;
+}
+
+.otp__row {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.otp__link {
+  min-height: 40px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.otp__link:disabled {
+  color: var(--muted);
+  text-decoration: none;
+  cursor: default;
+}

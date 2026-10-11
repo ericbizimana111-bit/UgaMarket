@@ -2,6 +2,7 @@ import { createContext, useCallback, useContext, useEffect, useMemo, useRef, use
 import api, { API_BASE } from '../services/api';
 import { useAuth } from './AuthContext';
 import { useToast } from '../components/feedback/Toast';
+import { installAudioUnlock, playAlert } from '../utils/sounds';
 
 /**
  * Live operations feed for the console.
@@ -18,33 +19,10 @@ import { useToast } from '../components/feedback/Toast';
 const RealtimeContext = createContext(null);
 
 const SOUND_KEY = 'ugamarket_admin_sound';
-const LOUD_TYPES = new Set(['NEW_ORDER', 'PAYMENT_RECEIVED', 'NEW_SERVICE_REQUEST', 'NEW_MESSAGE']);
-const TOAST_TYPE = { NEW_ORDER: 'success', PAYMENT_RECEIVED: 'success', BALANCE_PAID: 'success', PAYMENT_FAILED: 'warning', ORDER_CANCELLED: 'warning', SERVICE_REQUEST_CANCELLED: 'warning' };
+// Every alert type has its own tone (utils/sounds.js); these are the ones that sound.
+const LOUD_TYPES = new Set(['NEW_ORDER', 'PAYMENT_RECEIVED', 'BALANCE_PAID', 'NEW_SERVICE_REQUEST', 'NEW_MESSAGE', 'PAYMENT_FAILED', 'ORDER_CANCELLED', 'MISSED_CALL']);
+const TOAST_TYPE = { NEW_ORDER: 'success', PAYMENT_RECEIVED: 'success', BALANCE_PAID: 'success', PAYMENT_FAILED: 'warning', ORDER_CANCELLED: 'warning', SERVICE_REQUEST_CANCELLED: 'warning', MISSED_CALL: 'warning' };
 const BASE_TITLE = typeof document !== 'undefined' ? document.title : 'UgaMarket';
-
-function playChime() {
-  try {
-    const Ctx = window.AudioContext || window.webkitAudioContext;
-    if (!Ctx) return;
-    const ctx = new Ctx();
-    const now = ctx.currentTime;
-    [880, 1318.5].forEach((freq, i) => {
-      const osc = ctx.createOscillator();
-      const gain = ctx.createGain();
-      osc.type = 'sine';
-      osc.frequency.value = freq;
-      gain.gain.setValueAtTime(0.0001, now + i * 0.16);
-      gain.gain.exponentialRampToValueAtTime(0.25, now + i * 0.16 + 0.02);
-      gain.gain.exponentialRampToValueAtTime(0.0001, now + i * 0.16 + 0.35);
-      osc.connect(gain).connect(ctx.destination);
-      osc.start(now + i * 0.16);
-      osc.stop(now + i * 0.16 + 0.4);
-    });
-    setTimeout(() => ctx.close(), 1000);
-  } catch {
-    /* audio is best-effort */
-  }
-}
 
 function readSoundPref() {
   try {
@@ -113,7 +91,8 @@ export function RealtimeProvider({ children }) {
       if (n.type !== 'NEW_MESSAGE') {
         showToast(`${n.title} — ${n.message}`, { type: TOAST_TYPE[n.type] || 'info', duration: 8000 });
       }
-      if (soundRef.current && LOUD_TYPES.has(n.type)) playChime();
+      // Chat messages sound on chat:message (one per message, not per burst).
+      if (soundRef.current && LOUD_TYPES.has(n.type) && n.type !== 'NEW_MESSAGE') playAlert(n.type);
       if (typeof Notification !== 'undefined' && Notification.permission === 'granted' && document.visibilityState === 'hidden') {
         try {
           const desktop = new Notification(n.title, { body: n.message, tag: n.id, icon: '/logo.png' });
@@ -167,7 +146,10 @@ export function RealtimeProvider({ children }) {
         source.addEventListener('chat:message', (e) => {
           const data = parse(e);
           if (!data) return;
-          if (data.message?.senderType === 'CUSTOMER') setUnreadMessages((c) => c + 1);
+          if (data.message?.senderType === 'CUSTOMER') {
+            setUnreadMessages((c) => c + 1);
+            if (soundRef.current) playAlert('NEW_MESSAGE');
+          }
           emit('chat:message', data);
         });
         source.addEventListener('chat:read', (e) => {
@@ -175,6 +157,10 @@ export function RealtimeProvider({ children }) {
           emit('chat:read', data);
           if (data?.by === 'ADMIN') refresh();
         });
+        // Receipts and voice-call signalling are forwarded to the pages/providers.
+        ['chat:delivered', 'call:incoming', 'call:taken', 'call:signal', 'call:ended'].forEach((name) =>
+          source.addEventListener(name, (e) => emit(name, parse(e))),
+        );
         source.onerror = () => {
           setConnected(false);
           source?.close();
@@ -199,6 +185,10 @@ export function RealtimeProvider({ children }) {
       setConnected(false);
     };
   }, [isAuthenticated, emit, refresh, handleNotification]);
+
+  useEffect(() => {
+    installAudioUnlock();
+  }, []);
 
   useEffect(() => {
     if (!isAuthenticated) {

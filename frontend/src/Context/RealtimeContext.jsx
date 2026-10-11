@@ -2,6 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useMemo, useR
 import apiClient, { API_BASE } from '../api/client';
 import { useAuth } from './AuthContext';
 import { useToast } from '../Components/Toast/Toast';
+import { installAudioUnlock, playTone, toneForNotification } from '../utils/sounds';
 
 /**
  * Live updates for signed-in customers.
@@ -88,20 +89,23 @@ export const RealtimeProvider = ({ children }) => {
           const data = safeParse(e.data);
           if (!data) return;
           setUnreadNotifications((n) => n + 1);
-          if (data.type !== 'NEW_MESSAGE' && toast?.showToast) {
-            toast.showToast(`${data.title}: ${data.message}`, { type: 'info', duration: 6000 });
+          if (data.type !== 'NEW_MESSAGE') {
+            // Chat messages have their own tone (chat:message below).
+            playTone(toneForNotification(data.type));
+            if (toast?.showToast) toast.showToast(`${data.title}: ${data.message}`, { type: 'info', duration: 6000 });
           }
           emit('notification', data);
         });
         source.addEventListener('chat:message', (e) => {
           const data = safeParse(e.data);
           if (!data) return;
-          if (data.message?.senderType === 'ADMIN' && !quietRef.current.messages) {
-            setUnreadMessages((n) => n + 1);
+          if (data.message?.senderType === 'ADMIN') {
+            playTone('message');
+            if (!quietRef.current.messages) setUnreadMessages((n) => n + 1);
           }
           emit('chat:message', data);
         });
-        ['chat:read', 'service:update', 'order:update'].forEach((name) =>
+        ['chat:read', 'chat:delivered', 'service:update', 'order:update', 'call:accepted', 'call:signal', 'call:ended'].forEach((name) =>
           source.addEventListener(name, (e) => emit(name, safeParse(e.data)))
         );
         source.onerror = () => {
@@ -130,6 +134,10 @@ export const RealtimeProvider = ({ children }) => {
       setConnected(false);
     };
   }, [isAuthenticated, emit, refreshCounts, toast]);
+
+  useEffect(() => {
+    installAudioUnlock();
+  }, []);
 
   // Safety-net re-sync
   useEffect(() => {

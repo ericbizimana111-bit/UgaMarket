@@ -22,6 +22,8 @@ import {
   validatePhone
 } from '../utils/inputGuards';
 import { friendlyError } from '../utils/errors';
+import apiClient from '../api/client';
+import CodeStep from '../Components/Otp/CodeStep';
 import './LoginSignup.css';
 
 const LOGO_SRC = `${process.env.PUBLIC_URL}/logo.png`;
@@ -125,6 +127,27 @@ const LoginSignup = () => {
   const [googlePending, setGooglePending] = useState(null);
   const [googlePhone, setGooglePhone] = useState('');
   const [googlePhoneTouched, setGooglePhoneTouched] = useState(false);
+  // Sign-up verification: which channels the server can deliver codes on,
+  // the chosen channel, and the "enter your code" step once a code is sent.
+  const [verifyConfig, setVerifyConfig] = useState({ signupVerificationRequired: true, channels: { SMS: true, EMAIL: true } });
+  const [channel, setChannel] = useState('SMS');
+  const [otpStep, setOtpStep] = useState(null); // { channel, sentTo, resendIn }
+  const [otpError, setOtpError] = useState('');
+
+  useEffect(() => {
+    let alive = true;
+    apiClient
+      .get('/auth/verification-config')
+      .then((res) => {
+        if (!alive || !res?.data) return;
+        setVerifyConfig(res.data);
+        if (!res.data.channels?.SMS && res.data.channels?.EMAIL) setChannel('EMAIL');
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   // Countdown while locked out after repeated failed sign-ins.
   useEffect(() => {
@@ -155,6 +178,8 @@ const LoginSignup = () => {
     setFormError('');
     setShowPassword(false);
     setGooglePending(null);
+    setOtpStep(null);
+    setOtpError('');
   };
 
   const setField = (field, sanitizer) => (e) => {
@@ -187,8 +212,23 @@ const LoginSignup = () => {
       return;
     }
 
-    setSubmitting(true);
     const phone = normalizeUgandaPhone(values.phone);
+
+    // New accounts verify their phone (SMS) or email with a one-time code first.
+    if (!isLogin && verifyConfig.signupVerificationRequired) {
+      const useChannel = channel === 'EMAIL' && values.email.trim() ? 'EMAIL' : 'SMS';
+      if (useChannel === 'SMS' && verifyConfig.channels && !verifyConfig.channels.SMS) {
+        setFormError(values.email.trim() ? t('otpSmsDownUseEmail') : t('otpSmsDownAddEmail'));
+        return;
+      }
+      setSubmitting(true);
+      const sent = await sendSignupCode(useChannel, phone);
+      setSubmitting(false);
+      if (sent) setOtpStep(sent);
+      return;
+    }
+
+    setSubmitting(true);
     const result = isLogin
       ? await login(phone, values.password)
       : await register({
@@ -215,6 +255,62 @@ const LoginSignup = () => {
     }
     setFormError(authErrorMessage(result, isLogin, t));
     setValues((prev) => ({ ...prev, password: '' }));
+  };
+
+  /** Ask the server to send the sign-up code. Returns the code step or null. */
+  const sendSignupCode = async (useChannel, phone = normalizeUgandaPhone(values.phone)) => {
+    setFormError('');
+    setOtpError('');
+    try {
+      const res = await apiClient.post('/auth/register/start', {
+        phone,
+        ...(values.email.trim() ? { email: values.email.trim() } : {}),
+        channel: useChannel
+      });
+      if (res?.data?.devCode) {
+        // Development only (never in production): show the code that was "sent".
+        showToast(`${t('otpDevCode')}: ${res.data.devCode}`, { type: 'info', duration: 15000 });
+      }
+      return { channel: useChannel, sentTo: res?.data?.sentTo || '', resendIn: res?.data?.resendInSeconds || 60 };
+    } catch (err) {
+      const message = err?.status === 429 || err?.status >= 500 || err?.status === 502 ? err.message || t('errGeneric') : friendlyError(err, t, 'errRegisterFailed');
+      if (otpStep) setOtpError(message);
+      else setFormError(message);
+      return null;
+    }
+  };
+
+  const handleCode = async (code) => {
+    if (!otpStep || submitting) return;
+    setOtpError('');
+    setSubmitting(true);
+    const result = await register({
+      fullName: values.fullName.trim(),
+      phone: normalizeUgandaPhone(values.phone),
+      email: values.email.trim() || undefined,
+      password: values.password,
+      code,
+      channel: otpStep.channel
+    });
+    setSubmitting(false);
+    if (result.success) {
+      showToast(t('otpAccountCreated'), { type: 'success', duration: 5000 });
+      navigate(redirectUrl, { replace: true });
+      return;
+    }
+    if (result.status === 409) {
+      setOtpStep(null);
+      setFormError(t('errAccountExists'));
+      return;
+    }
+    setOtpError(result.error || t('otpWrongCode'));
+  };
+
+  const resendCode = async () => {
+    const sent = await sendSignupCode(otpStep.channel);
+    if (!sent) throw new Error('resend failed');
+    setOtpStep(sent);
+    return sent.resendIn;
   };
 
   // Shown only when Google sign-in is not configured for this build.
@@ -319,7 +415,42 @@ const LoginSignup = () => {
               </div>
             )}
 
-            {googlePending ? (
+            {otpStep ? (
+              <div className="auth__otp">
+                <h2>{t('otpTitle')}</h2>
+                <CodeStep
+                  key={`${otpStep.channel}-${otpStep.sentTo}`}
+                  channel={otpStep.channel}
+                  sentTo={otpStep.sentTo}
+                  resendIn={otpStep.resendIn}
+                  submitting={submitting}
+                  error={otpError}
+                  onSubmit={handleCode}
+                  onResend={resendCode}
+                  onBack={() => {
+                    setOtpStep(null);
+                    setOtpError('');
+                  }}
+                  submitLabel={t('otpCreateAccount')}
+                >
+                  {values.email.trim() && verifyConfig.channels?.EMAIL && verifyConfig.channels?.SMS && (
+                    <button
+                      type="button"
+                      className="otp__link"
+                      onClick={async () => {
+                        const next = otpStep.channel === 'SMS' ? 'EMAIL' : 'SMS';
+                        setChannel(next);
+                        const sent = await sendSignupCode(next);
+                        if (sent) setOtpStep(sent);
+                      }}
+                      disabled={submitting}
+                    >
+                      {otpStep.channel === 'SMS' ? t('otpUseEmailInstead') : t('otpUseSmsInstead')}
+                    </button>
+                  )}
+                </CodeStep>
+              </div>
+            ) : googlePending ? (
               <form onSubmit={handleGoogleFinish} noValidate className="auth__google-finish">
                 <h2>{t('googleFinishTitle', { name: googlePending.profile?.fullName || '' })}</h2>
                 <p className="auth__lead">{t('googleFinishDesc')}</p>
@@ -480,8 +611,42 @@ const LoginSignup = () => {
                   )}
                 </Field>
 
+                {isLogin && (
+                  <p className="auth__forgot">
+                    <Link to={`/forgot-password${values.phone ? `?phone=${encodeURIComponent(values.phone)}` : ''}`}>{t('forgotPassword')}</Link>
+                  </p>
+                )}
+
+                {!isLogin && verifyConfig.signupVerificationRequired && (
+                  <fieldset className="auth__channel">
+                    <legend>{t('otpSendCodeBy')}</legend>
+                    <label className={`auth__channel-opt ${verifyConfig.channels?.SMS === false ? 'is-disabled' : ''}`}>
+                      <input
+                        type="radio"
+                        name="otp-channel"
+                        value="SMS"
+                        checked={channel === 'SMS' || !values.email.trim()}
+                        onChange={() => setChannel('SMS')}
+                        disabled={verifyConfig.channels?.SMS === false}
+                      />
+                      {t('otpBySms')}
+                    </label>
+                    <label className={`auth__channel-opt ${!values.email.trim() || verifyConfig.channels?.EMAIL === false ? 'is-disabled' : ''}`}>
+                      <input
+                        type="radio"
+                        name="otp-channel"
+                        value="EMAIL"
+                        checked={channel === 'EMAIL' && Boolean(values.email.trim())}
+                        onChange={() => setChannel('EMAIL')}
+                        disabled={!values.email.trim() || verifyConfig.channels?.EMAIL === false}
+                      />
+                      {t('otpByEmail')}
+                    </label>
+                  </fieldset>
+                )}
+
                 <button type="submit" className="btn btn-primary btn-lg btn-block" disabled={submitting || locked}>
-                  {submitting ? t('processing2') : isLogin ? t('loginButton') : t('signupButton')}
+                  {submitting ? t('processing2') : isLogin ? t('loginButton') : verifyConfig.signupVerificationRequired ? t('otpContinue') : t('signupButton')}
                 </button>
               </form>
               </>

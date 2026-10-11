@@ -193,3 +193,20 @@
   background: var(--danger);
   border-radius: 999px;
 }
+
+.account__dot {
+  width: 9px;
+  height: 9px;
+  margin-left: auto;
+  background: var(--warning);
+  border-radius: 50%;
+}
+
+.account__verify {
+  margin-bottom: 14px;
+}
+
+.account__verify a {
+  font-weight: 700;
+  text-decoration: underline;
+}

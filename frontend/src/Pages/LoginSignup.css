@@ -367,3 +367,60 @@
     padding: 20px 14px;
   }
 }
+
+/* Forgot password, verification channel, code step */
+.auth__forgot {
+  margin: -4px 0 14px;
+  text-align: right;
+  font-size: var(--text-sm);
+}
+
+.auth__forgot a {
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.auth__channel {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin: 0 0 16px;
+  padding: 0;
+  border: 0;
+}
+
+.auth__channel legend {
+  width: 100%;
+  margin-bottom: 6px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--ink);
+}
+
+.auth__channel-opt {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 40px;
+  padding: 0 14px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  cursor: pointer;
+}
+
+.auth__channel-opt input {
+  accent-color: var(--primary);
+}
+
+.auth__channel-opt.is-disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+
+.auth__otp h2 {
+  margin-bottom: 12px;
+  font-size: 1.2rem;
+}

@@ -3,6 +3,7 @@ import lg from './lg';
 import sw from './sw';
 import fr from './fr';
 import MARKET from './market';
+import FEATURES from './features';
 
 /**
  * Supported storefront languages. `locale` drives number/date formatting
@@ -19,10 +20,10 @@ export const SUPPORTED_LANGUAGES = [
 // Marketplace strings are layered over the base dictionaries (and override
 // the older food-only / pickup-station copy).
 export const TRANSLATIONS = {
-  en: { ...en, ...MARKET.en },
-  lg: { ...lg, ...MARKET.lg },
-  sw: { ...sw, ...MARKET.sw },
-  fr: { ...fr, ...MARKET.fr }
+  en: { ...en, ...MARKET.en, ...FEATURES.en },
+  lg: { ...lg, ...MARKET.lg, ...FEATURES.lg },
+  sw: { ...sw, ...MARKET.sw, ...FEATURES.sw },
+  fr: { ...fr, ...MARKET.fr, ...FEATURES.fr }
 };
 
 export const DEFAULT_LANGUAGE = 'en';

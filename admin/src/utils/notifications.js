@@ -1,4 +1,4 @@
-import { Bell, CircleAlert, CircleCheck, MessageCircle, PackageX, ShoppingBag, Wallet, Wrench } from 'lucide-react';
+import { Bell, CircleAlert, CircleCheck, MessageCircle, PackageX, PhoneMissed, ShoppingBag, Wallet, Wrench } from 'lucide-react';
 
 /** Icon + human label per staff notification type. */
 const TYPES = {
@@ -10,6 +10,7 @@ const TYPES = {
   NEW_MESSAGE: { icon: MessageCircle, label: 'Customer message' },
   NEW_SERVICE_REQUEST: { icon: Wrench, label: 'Service booking' },
   SERVICE_REQUEST_CANCELLED: { icon: Wrench, label: 'Booking cancelled' },
+  MISSED_CALL: { icon: PhoneMissed, label: 'Missed call' },
 };
 
 export function notificationIcon(type) {

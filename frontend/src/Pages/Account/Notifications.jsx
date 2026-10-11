@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { AlertTriangle, Bell, CheckCheck, CreditCard, MessageCircle, Package, Truck, Wrench } from 'lucide-react';
+import { AlertTriangle, Bell, CheckCheck, CreditCard, MessageCircle, Package, ShieldCheck, Sparkles, Truck, Wrench } from 'lucide-react';
 import apiClient from '../../api/client';
 import { useLanguage } from '../../Context/LanguageContext';
 import { useRealtime, useRealtimeEvent } from '../../Context/RealtimeContext';
@@ -12,8 +12,13 @@ const TYPE_ICONS = {
   DELIVERY_UPDATE: Truck,
   PAYMENT_UPDATE: CreditCard,
   SERVICE_UPDATE: Wrench,
-  NEW_MESSAGE: MessageCircle
+  NEW_MESSAGE: MessageCircle,
+  SECURITY: ShieldCheck,
+  NEW_ARRIVALS: Sparkles
 };
+
+// Seconds the list must be on screen before everything counts as read.
+const AUTO_READ_DELAY_MS = 1500;
 
 /**
  * Notifications (order, delivery, payment, booking and message updates).
@@ -42,6 +47,22 @@ const Notifications = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Opening the page reads the notifications: clear the badge on the server
+  // and in the header, but keep the "new" highlight on screen until the
+  // customer leaves, so they can still see what arrived.
+  const unreadOnLoad = notifications.some((n) => !n.isRead);
+  useEffect(() => {
+    if (loading || !unreadOnLoad) return undefined;
+    const timer = setTimeout(() => {
+      if (document.visibilityState !== 'visible') return;
+      apiClient
+        .patch('/notifications/read-all')
+        .then(() => setUnreadNotifications(0))
+        .catch(() => {});
+    }, AUTO_READ_DELAY_MS);
+    return () => clearTimeout(timer);
+  }, [loading, unreadOnLoad, setUnreadNotifications]);
 
   useRealtimeEvent('notification', (n) => {
     if (n?.id) setNotifications((prev) => (prev.some((x) => x.id === n.id) ? prev : [n, ...prev]));

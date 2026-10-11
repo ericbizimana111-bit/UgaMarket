@@ -1,0 +1,146 @@
+.callpanel {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 3000;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: min(420px, calc(100vw - 24px));
+}
+
+.callcard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 14px;
+  background: var(--surface);
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 14px 34px rgba(15, 23, 42, 0.18);
+}
+
+.callcard--ringing {
+  border-color: var(--success);
+  animation: callcard-in 0.25s ease;
+}
+
+@keyframes callcard-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+}
+
+.callcard__icon {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 42px;
+  height: 42px;
+  color: #fff;
+  background: var(--brand-primary);
+  border-radius: 50%;
+}
+
+.callcard--ringing .callcard__icon {
+  background: var(--success);
+}
+
+.callcard__icon--pulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--success);
+  border-radius: 50%;
+  animation: callcard-pulse 1.3s ease-out infinite;
+}
+
+@keyframes callcard-pulse {
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+.callcard__body {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-width: 0;
+}
+
+.callcard__body small {
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--success);
+}
+
+.callcard__body strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-strong);
+}
+
+.callcard__body span {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.callcard__btn {
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 40px;
+  color: var(--text-strong);
+  background: var(--surface-muted);
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  cursor: pointer;
+}
+
+.callcard__btn--on {
+  color: #fff;
+  background: var(--text-strong);
+}
+
+.callcard__btn--end {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.callcard__answer {
+  background: var(--success);
+  border-color: var(--success);
+}
+
+@media (max-width: 520px) {
+  .callpanel {
+    left: 12px;
+    right: 12px;
+    bottom: 12px;
+    width: auto;
+  }
+
+  .callcard--ringing {
+    flex-wrap: wrap;
+  }
+
+  .callcard--ringing .btn {
+    flex: 1;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .callcard--ringing,
+  .callcard__icon--pulse::after {
+    animation: none;
+  }
+}

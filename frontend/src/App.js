@@ -7,6 +7,9 @@ import MobileNav from './Components/MobileNav/MobileNav';
 import ScrollToTop from './Components/ui/ScrollToTop';
 import { ToastProvider } from './Components/Toast/Toast';
 import { RealtimeProvider } from './Context/RealtimeContext';
+import { CallProvider } from './Context/CallContext';
+import CallOverlay from './Components/Call/CallOverlay';
+import CookieConsent from './Components/CookieConsent/CookieConsent';
 import Shop from './Pages/Shop';
 import ProductCatalog from './Pages/ProductCatalog';
 import Product from './Pages/Product';
@@ -24,6 +27,12 @@ import Services from './Pages/Services/Services';
 import ServiceBooking from './Pages/Services/ServiceBooking';
 import MyServiceRequests from './Pages/Services/MyServiceRequests';
 import ServiceRequestDetail from './Pages/Services/ServiceRequestDetail';
+import Security from './Pages/Account/Security';
+import ForgotPassword from './Pages/ForgotPassword';
+import LegalPage from './Pages/Legal/LegalPage';
+import HelpCenter from './Pages/Legal/HelpCenter';
+import CommitmentRules from './Pages/Legal/CommitmentRules';
+import NewsletterAction from './Pages/NewsletterAction';
 import { useAuth } from './Context/AuthContext';
 import { useLanguage } from './Context/LanguageContext';
 
@@ -72,6 +81,17 @@ function AppRoutes() {
             <Route path="/pickup-stations" element={<Navigate to="/how-it-works" replace />} />
             <Route path="/how-it-works" element={<HowItWorks />} />
             <Route path="/login" element={<LoginSignup />} />
+            <Route path="/forgot-password" element={<ForgotPassword />} />
+
+            {/* Help & policies */}
+            <Route path="/help" element={<HelpCenter />} />
+            <Route path="/terms" element={<LegalPage doc="terms" />} />
+            <Route path="/privacy" element={<LegalPage doc="privacy" />} />
+            <Route path="/security" element={<LegalPage doc="security" />} />
+            <Route path="/cookies" element={<LegalPage doc="cookies" />} />
+            <Route path="/commitment-rules" element={<CommitmentRules />} />
+            <Route path="/newsletter/confirm" element={<NewsletterAction action="confirm" />} />
+            <Route path="/newsletter/unsubscribe" element={<NewsletterAction action="unsubscribe" />} />
 
             {/* Checkout (requires customer auth) */}
             <Route
@@ -98,6 +118,7 @@ function AppRoutes() {
               <Route path="addresses" element={<Addresses />} />
               <Route path="notifications" element={<Notifications />} />
               <Route path="messages" element={<Messages />} />
+              <Route path="security" element={<Security />} />
               <Route path="services" element={<MyServiceRequests />} />
               <Route path="services/:id" element={<ServiceRequestDetail />} />
             </Route>
@@ -108,6 +129,8 @@ function AppRoutes() {
       </main>
       {!isAuthPage && <Footer />}
       {!isAuthPage && <MobileNav />}
+      <CallOverlay />
+      <CookieConsent />
     </div>
   );
 }
@@ -117,7 +140,9 @@ function App() {
     <Router>
       <ToastProvider>
         <RealtimeProvider>
-          <AppRoutes />
+          <CallProvider>
+            <AppRoutes />
+          </CallProvider>
         </RealtimeProvider>
       </ToastProvider>
     </Router>

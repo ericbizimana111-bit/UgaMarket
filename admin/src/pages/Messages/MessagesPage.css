@@ -219,9 +219,37 @@
 
 .msg--staff {
   align-self: flex-end;
-  color: #fff;
-  background: var(--brand-primary);
+  color: var(--text);
+  background: var(--brand-primary-soft);
+  border: 1px solid #cfe5d8;
   border-bottom-right-radius: 3px;
+}
+
+.msg--staff .msg__name {
+  color: var(--brand-primary);
+}
+
+.msg--staff .msg__ref {
+  color: var(--brand-primary);
+  background: var(--surface);
+}
+
+.msg__meta {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+  align-self: flex-end;
+}
+
+.msg__tick {
+  display: inline-flex;
+  color: var(--text-faint);
+}
+
+/* Read by the customer: green double tick */
+.msg__tick--read {
+  color: #16a34a;
 }
 
 .msg__name {

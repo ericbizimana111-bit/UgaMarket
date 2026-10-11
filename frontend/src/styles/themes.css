@@ -1,0 +1,211 @@
+/**
+ * UgaMarket themes.
+ *
+ * The whole storefront is styled with the tokens in index.css; a theme only
+ * redefines tokens, so every page, dialog and component follows the choice.
+ *
+ *   <html data-accent="green|blue|purple|teal|orange|rose|midnight"
+ *         data-theme="light|dark">
+ *
+ * Brand colours carry white text (buttons, badges), so every --primary keeps
+ * at least 4.5:1 contrast against #fff in light mode; dark-mode primaries
+ * are lifted for visibility on dark surfaces while keeping white text legible.
+ */
+
+:root {
+  --primary-deep: #133b24; /* hero panels */
+  --footer-bg: #0f2a1c;
+  --focus-ring: rgba(21, 112, 58, 0.45);
+  --on-primary: #ffffff;
+  /* dark chips/toasts that carry white text in both modes */
+  --chip-dark: #0f172a;
+  --overlay: rgba(15, 23, 42, 0.5);
+  --shadow-pop: 0 12px 32px rgba(15, 23, 42, 0.16);
+  color-scheme: light;
+}
+
+/* ── Colour themes (light) ─────────────────────────────────── */
+html[data-accent='blue'] {
+  --primary: #1d4ed8;
+  --primary-hover: #1e40af;
+  --primary-soft: #eaf0fd;
+  --primary-line: #c9d8fa;
+  --primary-deep: #172f73;
+  --footer-bg: #0f1d3d;
+  --focus-ring: rgba(29, 78, 216, 0.45);
+}
+
+html[data-accent='purple'] {
+  --primary: #6d28d9;
+  --primary-hover: #5b21b6;
+  --primary-soft: #f2ecfd;
+  --primary-line: #ddd0f8;
+  --primary-deep: #3b1772;
+  --footer-bg: #22113f;
+  --focus-ring: rgba(109, 40, 217, 0.45);
+}
+
+html[data-accent='teal'] {
+  --primary: #0f766e;
+  --primary-hover: #115e59;
+  --primary-soft: #e6f5f3;
+  --primary-line: #c4e6e1;
+  --primary-deep: #0c3f3b;
+  --footer-bg: #082a28;
+  --focus-ring: rgba(15, 118, 110, 0.45);
+}
+
+html[data-accent='orange'] {
+  --primary: #c2410c;
+  --primary-hover: #9a3412;
+  --primary-soft: #fdf0e8;
+  --primary-line: #f6d3bf;
+  --primary-deep: #6b2408;
+  --footer-bg: #3a1606;
+  --focus-ring: rgba(194, 65, 12, 0.45);
+  /* the amber accent would clash with orange: use teal for highlights */
+  --accent: #0f766e;
+  --accent-hover: #115e59;
+  --accent-soft: #e6f5f3;
+}
+
+html[data-accent='rose'] {
+  --primary: #be123c;
+  --primary-hover: #9f1239;
+  --primary-soft: #fdebf0;
+  --primary-line: #f7c9d4;
+  --primary-deep: #690a22;
+  --footer-bg: #3b0716;
+  --focus-ring: rgba(190, 18, 60, 0.45);
+}
+
+html[data-accent='midnight'] {
+  --primary: #1e293b;
+  --primary-hover: #0f172a;
+  --primary-soft: #eef1f5;
+  --primary-line: #d3d9e2;
+  --primary-deep: #111827;
+  --footer-bg: #0b1220;
+  --focus-ring: rgba(30, 41, 59, 0.45);
+}
+
+/* ── Dark mode: neutrals and status colours ────────────────── */
+html[data-theme='dark'] {
+  color-scheme: dark;
+
+  --ink: #f1f5f9;
+  --text: #e2e8f0;
+  --muted: #a5afbd;
+  --faint: #8a95a5;
+  --line: #263240;
+  --line-strong: #38475a;
+  --bg: #0b1117;
+  --surface: #121a23;
+  --surface-alt: #18232f;
+
+  --accent: #c26805;
+  --accent-hover: #a85a04;
+  --accent-soft: #33240d;
+
+  --danger: #e5484d;
+  --danger-soft: #3a1618;
+  --success: #3fbf74;
+  --success-soft: #12301f;
+  --warning: #e7a63c;
+  --warning-soft: #36270d;
+  --info: #5b9cf0;
+  --info-soft: #11253f;
+
+  --overlay: rgba(0, 0, 0, 0.62);
+  --chip-dark: #2a3746;
+  --shadow-pop: 0 12px 32px rgba(0, 0, 0, 0.5);
+
+  /* default (green) theme, dark */
+  --primary: #2b8a54;
+  --primary-hover: #237447;
+  --primary-soft: #14301f;
+  --primary-line: #225038;
+  --primary-deep: #123522;
+  --footer-bg: #070d0a;
+  --focus-ring: rgba(63, 191, 116, 0.5);
+}
+
+html[data-theme='dark'][data-accent='blue'] {
+  --primary: #3b6ee8;
+  --primary-hover: #2f5dd0;
+  --primary-soft: #16233f;
+  --primary-line: #26396a;
+  --primary-deep: #142650;
+  --footer-bg: #060b16;
+  --focus-ring: rgba(91, 140, 240, 0.55);
+}
+
+html[data-theme='dark'][data-accent='purple'] {
+  --primary: #7c4ae8;
+  --primary-hover: #6a3bd2;
+  --primary-soft: #231a3d;
+  --primary-line: #3a2a66;
+  --primary-deep: #2a1752;
+  --footer-bg: #0b0716;
+  --focus-ring: rgba(150, 110, 245, 0.55);
+}
+
+html[data-theme='dark'][data-accent='teal'] {
+  --primary: #11867b;
+  --primary-hover: #0e7268;
+  --primary-soft: #0f2a28;
+  --primary-line: #18463f;
+  --primary-deep: #0b302d;
+  --footer-bg: #050f0e;
+  --focus-ring: rgba(45, 190, 175, 0.5);
+}
+
+html[data-theme='dark'][data-accent='orange'] {
+  --primary: #c8501a;
+  --primary-hover: #ad4415;
+  --primary-soft: #33190d;
+  --primary-line: #57290f;
+  --primary-deep: #4a1d08;
+  --footer-bg: #120703;
+  --focus-ring: rgba(240, 120, 60, 0.5);
+  --accent: #11867b;
+  --accent-hover: #0e7268;
+  --accent-soft: #0f2a28;
+}
+
+html[data-theme='dark'][data-accent='rose'] {
+  --primary: #d42f5a;
+  --primary-hover: #b8264d;
+  --primary-soft: #351520;
+  --primary-line: #5a2034;
+  --primary-deep: #4d0f22;
+  --footer-bg: #120409;
+  --focus-ring: rgba(240, 90, 130, 0.5);
+}
+
+html[data-theme='dark'][data-accent='midnight'] {
+  --primary: #5b6b84;
+  --primary-hover: #4b5a71;
+  --primary-soft: #1c2430;
+  --primary-line: #2b3646;
+  --primary-deep: #1a2230;
+  --footer-bg: #05080d;
+  --focus-ring: rgba(148, 163, 184, 0.5);
+}
+
+/* Smooth hand-over when the customer switches theme (not on first paint). */
+html.um-theme-switching,
+html.um-theme-switching * {
+  transition: background-color 0.25s ease, border-color 0.25s ease, color 0.25s ease !important;
+}
+
+/* Third-party surfaces that need a nudge in dark mode */
+html[data-theme='dark'] .leaflet-container {
+  background: #1b2530;
+}
+html[data-theme='dark'] img.um-logo__img,
+html[data-theme='dark'] .um-drawer__head img {
+  background: #ffffff;
+  border-radius: 8px;
+  padding: 2px 6px;
+}

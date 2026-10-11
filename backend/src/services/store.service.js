@@ -45,9 +45,10 @@ function localizeFaq(faq, lang) {
 /** Public: contact details, localized announcement and active FAQs. */
 async function getPublicStore(lang = 'EN') {
   const l = normalizeLanguage(lang);
-  const [row, faqs] = await Promise.all([
+  const [row, faqs, rule] = await Promise.all([
     getStoreRow(),
     prisma.faq.findMany({ where: { isActive: true }, orderBy: [{ displayOrder: 'asc' }, { id: 'asc' }] }),
+    prisma.commitmentRuleConfig.findFirst({ where: { isActive: true }, orderBy: { updatedAt: 'desc' } }),
   ]);
 
   let announcement = row.announcement || null;
@@ -63,6 +64,15 @@ async function getPublicStore(lang = 'EN') {
   return {
     store: { ...formatStore(row), announcement },
     faqs: faqs.map((f) => localizeFaq(f, l)),
+    // Public deposit rule, shown on the commitment-rules page.
+    commitment: rule
+      ? {
+          ruleType: rule.ruleType,
+          percentage: Number(rule.percentageValue),
+          flatUgx: rule.flatValueUgx,
+          minimumUgx: rule.minCommitment,
+        }
+      : null,
   };
 }
 

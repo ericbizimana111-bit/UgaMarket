@@ -1,0 +1,150 @@
+/* Floating voice-call panel: bottom-right on desktop, full-width above the
+   bottom navigation on phones. */
+.um-call {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  z-index: 2600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: min(380px, calc(100vw - 32px));
+  padding: 14px 14px 14px 16px;
+  color: var(--text);
+  background: var(--surface);
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-pop);
+  animation: um-call-in 0.25s var(--ease);
+}
+
+@keyframes um-call-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+}
+
+.um-call__avatar {
+  position: relative;
+  display: grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 46px;
+  height: 46px;
+  color: #fff;
+  background: var(--primary);
+  border-radius: 50%;
+}
+
+.um-call__avatar--pulse::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border: 2px solid var(--primary);
+  border-radius: 50%;
+  animation: um-call-pulse 1.4s ease-out infinite;
+}
+
+@keyframes um-call-pulse {
+  from {
+    opacity: 0.8;
+    transform: scale(1);
+  }
+  to {
+    opacity: 0;
+    transform: scale(1.35);
+  }
+}
+
+.um-call__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+}
+
+.um-call__text strong {
+  color: var(--ink);
+  font-size: var(--text-base);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.um-call__status {
+  font-size: var(--text-sm);
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.um-call--ended .um-call__status {
+  white-space: normal;
+}
+
+.um-call__link {
+  margin-top: 4px;
+  font-size: var(--text-sm);
+  font-weight: 700;
+  color: var(--primary);
+  text-decoration: underline;
+}
+
+.um-call__actions {
+  display: flex;
+  gap: 8px;
+}
+
+.um-call__btn {
+  display: grid;
+  place-items: center;
+  width: 46px;
+  height: 46px;
+  color: var(--ink);
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.um-call__btn:hover {
+  background: var(--primary-soft);
+}
+
+.um-call__btn--on {
+  color: #fff;
+  background: var(--chip-dark);
+}
+
+.um-call__btn--hangup {
+  color: #fff;
+  background: #dc2626;
+  border-color: #dc2626;
+}
+
+.um-call__btn--hangup:hover {
+  background: #b91c1c;
+}
+
+@media (max-width: 768px) {
+  .um-call {
+    left: 12px;
+    right: 12px;
+    bottom: calc(70px + env(safe-area-inset-bottom, 0px));
+    width: auto;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .um-call,
+  .um-call__avatar--pulse::after {
+    animation: none;
+  }
+}
+
+/* "Call us" button used in Messages and the help area */
+.um-callbtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}

@@ -1,0 +1,141 @@
+.tp {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.tp__group {
+  border: 0;
+  padding: 0;
+  margin: 0;
+  min-width: 0;
+}
+
+.tp__group legend {
+  margin-bottom: 8px;
+  font-size: var(--text-xs);
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.tp__modes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.tp__mode {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  min-height: 56px;
+  padding: 8px 4px;
+  font-size: var(--text-sm);
+  font-weight: 600;
+  color: var(--text);
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.tp__mode--on {
+  color: var(--primary);
+  background: var(--primary-soft);
+  border-color: var(--primary);
+}
+
+html[data-theme='dark'] .tp__mode--on {
+  color: var(--ink);
+}
+
+.tp__swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.tp__swatch {
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  color: #fff;
+  background: var(--sw);
+  border: 2px solid var(--surface);
+  border-radius: 50%;
+  box-shadow: 0 0 0 1px var(--line-strong);
+}
+
+.tp__swatch--on {
+  box-shadow: 0 0 0 2px var(--ink);
+}
+
+.tp__sound {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  text-align: left;
+  color: var(--text);
+  background: var(--surface-alt);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+}
+
+.tp__sound > span:first-of-type {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
+.tp__sound small {
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.tp__switch {
+  position: relative;
+  flex: 0 0 auto;
+  width: 40px;
+  height: 22px;
+  background: var(--line-strong);
+  border-radius: 999px;
+  transition: background-color var(--fast) var(--ease);
+}
+
+.tp__switch::after {
+  content: '';
+  position: absolute;
+  top: 3px;
+  left: 3px;
+  width: 16px;
+  height: 16px;
+  background: #fff;
+  border-radius: 50%;
+  transition: transform var(--fast) var(--ease);
+}
+
+.tp__switch--on {
+  background: var(--primary);
+}
+
+.tp__switch--on::after {
+  transform: translateX(18px);
+}
+
+.tp-pop {
+  right: 0;
+  left: auto;
+  width: 300px;
+  padding: 14px;
+}
+
+.tp-pop__title {
+  margin-bottom: 10px;
+  font-weight: 700;
+  color: var(--ink);
+}

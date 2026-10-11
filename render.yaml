@@ -90,3 +90,39 @@ services:
         value: MYMEMORY
       - key: MYMEMORY_EMAIL
         sync: false
+      # ── Verification codes, newsletter (email + SMS) ──
+      # SMTP (e.g. Gmail app password, Zoho, Brevo) or RESEND.
+      - key: EMAIL_PROVIDER
+        sync: false
+      - key: EMAIL_FROM
+        sync: false
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USER
+        sync: false
+      - key: SMTP_PASS
+        sync: false
+      - key: RESEND_API_KEY
+        sync: false
+      # Africa's Talking (MTN + Airtel Uganda SMS)
+      - key: SMS_PROVIDER
+        value: AFRICASTALKING
+      - key: AT_USERNAME
+        sync: false
+      - key: AT_API_KEY
+        sync: false
+      - key: AT_SENDER_ID
+        sync: false
+      - key: SMS_DELIVERY_REPORT_TOKEN
+        generateValue: true
+      - key: OTP_SECRET
+        generateValue: true
+      # ── Voice calls: TURN relay for callers on mobile networks ──
+      - key: TURN_URLS
+        sync: false
+      - key: TURN_USERNAME
+        sync: false
+      - key: TURN_CREDENTIAL
+        sync: false
