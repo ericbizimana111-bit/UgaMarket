@@ -137,7 +137,8 @@ async function waitFor(fn, ms = 8000) {
     const f = preview.json?.data?.checkout?.fulfillment;
     check('checkout preview has distance, ETA and fee', f?.distanceKm > 0 && f?.etaMinutes > 0 && f?.deliveryFeeUgx > 0, JSON.stringify(f));
     console.log(`     ${f?.distanceKm} km (${f?.distanceSource}) · ${f?.etaMinutes} min · fee UGX ${f?.deliveryFeeUgx}`);
-    const order = await api('POST', '/api/orders', { token, body: { addressId } });
+    const { LEGAL_VERSIONS } = require('../src/services/consent.service');
+    const order = await api('POST', '/api/orders', { token, body: { addressId, acceptTerms: true, termsVersion: LEGAL_VERSIONS.terms, privacyVersion: LEGAL_VERSIONS.privacy } });
     check('order placed', order.status === 201, JSON.stringify(order.json));
     orderId = order.json?.data?.order?.id;
     const live = await waitFor(() => adminStream.events.find((e) => e.event === 'notification' && e.data?.orderId === orderId && e.data?.type === 'NEW_ORDER'));

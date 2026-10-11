@@ -3,7 +3,7 @@ const app = require('../src/app');
 const prisma = require('../src/config/db');
 const env = require('../src/config/env');
 const { signCustomerToken } = require('../src/services/token.service');
-const { createTestAddress } = require('./helpers/fixtures');
+const { createTestAddress, CHECKOUT_CONSENT, SERVICE_CONSENT } = require('./helpers/fixtures');
 
 jest.setTimeout(45000);
 
@@ -132,7 +132,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
 
       expect(res.statusCode).toBe(201);
       const order = res.body.data.order;
@@ -175,7 +175,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
 
       expect(res.statusCode).toBe(201);
       const order = res.body.data.order;
@@ -191,7 +191,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       expect(res.statusCode).toBe(400);
     });
 
@@ -200,13 +200,13 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const bad = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'TELEPORT' });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'TELEPORT' });
       expect(bad.statusCode).toBe(400);
 
       const noAddr = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: null });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: null });
       expect(noAddr.statusCode).toBe(400);
       await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerAToken}`);
     });
@@ -216,7 +216,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressB.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressB.id });
       expect(res.statusCode).toBe(404);
       await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerAToken}`);
     });
@@ -227,7 +227,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'PICKUP_STATION', pickupStationId: 1 });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'PICKUP_STATION', pickupStationId: 1 });
       expect(res.statusCode).toBe(400);
       expect(JSON.stringify(res.body)).toMatch(/Pickup is no longer available/);
       expect(await prisma.order.count()).toBe(ordersBefore);
@@ -243,7 +243,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ addressId: legacy.id });
+        .send({ ...CHECKOUT_CONSENT, addressId: legacy.id });
       expect(res.statusCode).toBe(422);
       expect(await prisma.order.count()).toBe(ordersBefore);
       await prisma.address.delete({ where: { id: legacy.id } });
@@ -258,7 +258,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       expect(res.statusCode).toBe(409);
       expect(await prisma.order.count()).toBe(ordersBefore);
       await prisma.product.update({ where: { id: product.id }, data: { stockQuantity: 10 } });
@@ -271,7 +271,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       expect(res.statusCode).toBe(400);
       await prisma.product.update({ where: { id: product.id }, data: { isActive: true } });
       await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerAToken}`);
@@ -284,7 +284,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({
+        .send({ ...CHECKOUT_CONSENT,
           fulfillmentMethod: 'HOME_DELIVERY',
           addressId: addressA.id,
           pickupStationId: 42,
@@ -351,7 +351,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const create = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       const order = create.body.data.order;
       createdOrderIds.push(order.id);
 
@@ -397,7 +397,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const create = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       const order = create.body.data.order;
       createdOrderIds.push(order.id);
 
@@ -427,7 +427,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const create = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       lifecycleOrderId = create.body.data.order.id;
       createdOrderIds.push(lifecycleOrderId);
     });
@@ -475,7 +475,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const create = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerBToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressB.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressB.id });
       const order = create.body.data.order;
       createdOrderIds.push(order.id);
 
@@ -506,7 +506,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const create = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerAToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressA.id });
       const order = create.body.data.order;
       createdOrderIds.push(order.id);
 
@@ -573,9 +573,9 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       }
 
       const results = await Promise.allSettled([
-        request(app).post('/api/orders').set('Authorization', `Bearer ${c1.token}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: c1.addressId }),
-        request(app).post('/api/orders').set('Authorization', `Bearer ${c2.token}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: c2.addressId }),
-        request(app).post('/api/orders').set('Authorization', `Bearer ${c3.token}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: c3.addressId }),
+        request(app).post('/api/orders').set('Authorization', `Bearer ${c1.token}`).send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: c1.addressId }),
+        request(app).post('/api/orders').set('Authorization', `Bearer ${c2.token}`).send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: c2.addressId }),
+        request(app).post('/api/orders').set('Authorization', `Bearer ${c3.token}`).send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: c3.addressId }),
       ]);
 
       const statuses = results.map((r) => (r.status === 'fulfilled' ? r.value.statusCode : 'REJECTED'));
@@ -614,6 +614,7 @@ describe('Orders & Order Lifecycle (Phase 5)', () => {
       const orderService = require('../src/services/order.service');
       await expect(
         orderService.createOrderFromCart(customerAId, {
+          ...SERVICE_CONSENT,
           fulfillmentMethod: 'HOME_DELIVERY',
           addressId: '00000000-0000-0000-0000-000000000999', // fails before any write
         })

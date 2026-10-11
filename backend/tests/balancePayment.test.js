@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
-const { createTestAddress } = require('./helpers/fixtures');
+const { createTestAddress, CHECKOUT_CONSENT } = require('./helpers/fixtures');
 const prisma = require('../src/config/db');
 const env = require('../src/config/env');
 const { signMockWebhook } = require('../src/services/paymentProviders/mockProvider');
@@ -66,7 +66,7 @@ describe('Phase 8 Balance Payment & Order Completion API', () => {
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
-      .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressByToken[token] });
+      .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressByToken[token] });
 
     expect(res.statusCode).toBe(201);
     const order = res.body.data.order;

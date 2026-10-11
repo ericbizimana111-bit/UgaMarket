@@ -8,6 +8,7 @@ const { signCustomerToken } = require('./token.service');
 const { AppError } = require('../middleware/errorHandler');
 const otp = require('./otp.service');
 const { SECURITY_EVENTS, recordSecurityEvent } = require('./securityEvent.service');
+const { maskTarget } = require('./messaging');
 
 /**
  * Customer Authentication Service
@@ -35,6 +36,10 @@ const SAFE_USER_SELECT = {
   createdAt: true,
   updatedAt: true,
 };
+
+// Compared against when the phone is unknown, so a miss costs the same time
+// as a wrong password (no timing-based account discovery).
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync(crypto.randomBytes(16).toString('hex'), 12);
 
 const GENERIC_EXISTS_MESSAGE =
   'An account with these details already exists. Please sign in, or reset your password if you have forgotten it.';
@@ -183,7 +188,7 @@ async function loginUser({ phone, password }) {
   });
 
   // Same work and message whether or not the account exists.
-  const hash = user ? user.passwordHash : '$2a$12$C6UzMDM.H6dfI/f/IKcEeO5q1xQ9u7tQ3sXGQ8f1QwGQh8qD8b4ri';
+  const hash = user ? user.passwordHash : DUMMY_PASSWORD_HASH;
   const isPasswordValid = await bcrypt.compare(password, hash);
   if (!user || !user.isActive || !isPasswordValid) {
     throw new AppError('Invalid phone number or password', 401);
@@ -396,6 +401,8 @@ async function confirmContactVerification(userId, { channel, code }, ctx = {}) {
     select: SAFE_USER_SELECT,
   });
   await recordSecurityEvent({ userId, type: channel === 'EMAIL' ? SECURITY_EVENTS.EMAIL_VERIFIED : SECURITY_EVENTS.PHONE_VERIFIED, target, ctx });
+  // A newly verified email of a marketing-consenting customer joins the list.
+  if (channel === 'EMAIL' && updated.marketingConsent) await require('./newsletter.service').syncFromConsent(prisma, userId, true);
   return { user: updated };
 }
 
@@ -448,7 +455,7 @@ async function confirmContactChange(userId, { channel, value, code }, ctx = {}) 
     type: channel === 'EMAIL' ? SECURITY_EVENTS.EMAIL_CHANGED : SECURITY_EVENTS.PHONE_CHANGED,
     target,
     ctx,
-    metadata: { previous: channel === 'EMAIL' ? (user.email ? require('./messaging').maskTarget(user.email) : null) : require('./messaging').maskTarget(user.phone) },
+    metadata: { previous: channel === 'EMAIL' ? (user.email ? maskTarget(user.email) : null) : maskTarget(user.phone) },
   });
   await securityNotice(
     userId,
@@ -457,6 +464,7 @@ async function confirmContactChange(userId, { channel, value, code }, ctx = {}) 
       ? `Your UgaMarket email is now ${target}. If you did not make this change, contact support immediately.`
       : `Your UgaMarket phone number is now ${target}. Use it to sign in from now on. If you did not make this change, contact support immediately.`
   );
+  if (channel === 'EMAIL' && updated.marketingConsent) await require('./newsletter.service').syncFromConsent(prisma, userId, true);
   // The phone is part of the token payload: issue a fresh one.
   return { user: updated, token: signCustomerToken(updated) };
 }

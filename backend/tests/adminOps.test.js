@@ -7,7 +7,7 @@ const app = require('../src/app');
 const prisma = require('../src/config/db');
 const env = require('../src/config/env');
 const { signAdminToken } = require('../src/services/token.service');
-const { createTestAddress } = require('./helpers/fixtures');
+const { createTestAddress, CHECKOUT_CONSENT } = require('./helpers/fixtures');
 
 jest.setTimeout(60000);
 
@@ -138,7 +138,7 @@ describe('Admin operations', () => {
       });
       createdProductIds.push(product.id);
       await request(app).post('/api/cart/items').set('Authorization', `Bearer ${token}`).send({ productId: product.id, quantity: 1 });
-      const order = (await request(app).post('/api/orders').set('Authorization', `Bearer ${token}`).send({ addressId: address.id })).body.data.order;
+      const order = (await request(app).post('/api/orders').set('Authorization', `Bearer ${token}`).send({ ...CHECKOUT_CONSENT, addressId: address.id })).body.data.order;
       createdOrderIds.push(order.id);
 
       const res = await request(app).get(`/api/admin/orders/${order.id}/route`).set('Authorization', `Bearer ${dispatcherToken}`);

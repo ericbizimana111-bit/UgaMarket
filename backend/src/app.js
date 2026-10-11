@@ -33,6 +33,8 @@ const storeRoutes = require('./routes/store.routes');
 const adminStoreRoutes = require('./routes/adminStore.routes');
 const adminStaffRoutes = require('./routes/adminStaff.routes');
 const { customerChatRoutes, adminChatRoutes } = require('./routes/chat.routes');
+const { customerCallRoutes, adminCallRoutes } = require('./routes/call.routes');
+const newsletterRoutes = require('./routes/newsletter.routes');
 const {
   publicServiceRoutes,
   customerServiceRequestRoutes,
@@ -109,6 +111,8 @@ app.get('/api/health', async (req, res, next) => {
 
 // 8. Authentication Routes
 app.use('/api/auth', authLimiter, authRoutes);
+// Africa's Talking SMS delivery reports (token in the callback URL)
+app.post('/api/messaging/sms/delivery-report', require('./controllers/auth.controller').smsDeliveryReport);
 app.use('/api/admin/auth', authLimiter, adminAuthRoutes);
 
 // 9. Public & Admin Catalog Routes
@@ -143,6 +147,11 @@ app.use('/api/admin/notifications', adminNotificationRoutes);
 app.use('/api/realtime', realtimeRoutes);
 app.use('/api/chat', customerChatRoutes);
 app.use('/api/admin/chat', adminChatRoutes);
+app.use('/api/calls', customerCallRoutes);
+app.use('/api/admin/calls', adminCallRoutes);
+
+// 10f-2. Newsletter (double opt-in, unsubscribe links)
+app.use('/api/newsletter', newsletterRoutes);
 
 // 10g. Home services: catalogue, customer bookings, staff management
 app.use('/api/services', publicServiceRoutes);

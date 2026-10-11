@@ -3,7 +3,7 @@ const request = require('supertest');
 const app = require('../src/app');
 const env = require('../src/config/env');
 const prisma = require('../src/config/db');
-const { createTestAddress } = require('./helpers/fixtures');
+const { createTestAddress, CHECKOUT_CONSENT } = require('./helpers/fixtures');
 
 jest.setTimeout(90000);
 
@@ -135,7 +135,7 @@ describe('JJuma Global payments — end to end', () => {
     await request(app).delete('/api/cart').set('Authorization', `Bearer ${customerToken}`);
     const add = await request(app).post('/api/cart/items').set('Authorization', `Bearer ${customerToken}`).send({ productId: product.id, quantity: 1 });
     expect(add.statusCode).toBe(201);
-    const o = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId });
+    const o = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId });
     expect(o.statusCode).toBe(201);
     createdOrderIds.push(o.body.data.order.id);
     return o.body.data.order;

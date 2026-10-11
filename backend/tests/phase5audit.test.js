@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
-const { createTestAddress } = require('./helpers/fixtures');
+const { createTestAddress, CHECKOUT_CONSENT, SERVICE_CONSENT } = require('./helpers/fixtures');
 const prisma = require('../src/config/db');
 const env = require('../src/config/env');
 
@@ -54,7 +54,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
-      .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
+      .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
     expect(res.statusCode).toBe(201);
     const order = res.body.data.order;
     createdOrderIds.push(order.id);
@@ -152,7 +152,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerToken}`)
-        .send({
+        .send({ ...CHECKOUT_CONSENT,
           fulfillmentMethod: 'HOME_DELIVERY',
           addressId: address.id,
           // payment-tampering attempts (must all be ignored/stripped)
@@ -218,7 +218,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
       const retry = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
       expect(retry.statusCode).toBe(400);
       expect(await countOrders()).toBe(before + 1);
       expect(order.orderNumber).toMatch(/^UM-\d{8}-\d{6}$/);
@@ -234,11 +234,11 @@ describe('Phase 5 Final Audit (five areas)', () => {
         request(app)
           .post('/api/orders')
           .set('Authorization', `Bearer ${customerToken}`)
-          .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id }),
+          .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id }),
         request(app)
           .post('/api/orders')
           .set('Authorization', `Bearer ${customerToken}`)
-          .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id }),
+          .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id }),
       ]);
 
       const statuses = [r1.status, r2.status];
@@ -280,7 +280,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
         // fix it would read the still-present cart items and race ahead to a
         // duplicate order.
         bPromise = orderService
-          .createOrderFromCart(customerId, { fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id })
+          .createOrderFromCart(customerId, { ...SERVICE_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id })
           .then((o) => ({ ok: true, order: o }))
           .catch((e) => ({ ok: false, message: e.message }));
 
@@ -325,7 +325,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
       const res = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerToken}`)
-        .send({
+        .send({ ...CHECKOUT_CONSENT,
           fulfillmentMethod: 'HOME_DELIVERY',
           addressId: address.id,
           orderNumber: 'FB-DUPLICATE-000001',
@@ -340,7 +340,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
       const retry = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
       expect(retry.statusCode).toBe(400);
     });
 
@@ -513,7 +513,7 @@ describe('Phase 5 Final Audit (five areas)', () => {
       const hdOrder = await request(app)
         .post('/api/orders')
         .set('Authorization', `Bearer ${customerToken}`)
-        .send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
+        .send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: address.id });
       expect(hdOrder.statusCode).toBe(201);
       const hd = hdOrder.body.data.order;
       createdOrderIds.push(hd.id);

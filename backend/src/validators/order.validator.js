@@ -46,6 +46,14 @@ const createOrderSchema = {
       addressId: uuidSchema.nullable().optional(),
       notes: z.string().trim().max(1000).optional(),
       language: orderLanguageSchema,
+      // Required, explicit acceptance of the Terms + Privacy Policy versions
+      // shown at checkout; marketing consent is a separate optional choice.
+      acceptTerms: z.literal(true, {
+        errorMap: () => ({ message: 'Please confirm that you have read and agree to the Terms and Conditions and Privacy Policy.' }),
+      }),
+      termsVersion: z.string({ required_error: 'termsVersion is required' }).trim().max(40),
+      privacyVersion: z.string({ required_error: 'privacyVersion is required' }).trim().max(40),
+      marketingConsent: z.boolean().optional().default(false),
       // Mass-assignment protection: these are ALWAYS server-derived and stripped
       userId: z.unknown().optional(),
       orderNumber: z.unknown().optional(),
@@ -63,6 +71,11 @@ const createOrderSchema = {
       addressId: body.addressId ?? null,
       notes: body.notes ?? null,
       language: body.language,
+      consent: {
+        termsVersion: body.termsVersion,
+        privacyVersion: body.privacyVersion,
+        marketingConsent: body.marketingConsent === true,
+      },
     }))
     .refine((body) => !!body.addressId, {
       message: 'addressId is required: choose or add a delivery address',

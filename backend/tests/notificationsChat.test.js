@@ -10,7 +10,7 @@ const env = require('../src/config/env');
 const { signAdminToken } = require('../src/services/token.service');
 const { signMockWebhook } = require('../src/services/paymentProviders/mockProvider');
 const realtime = require('../src/services/realtime.service');
-const { createTestAddress } = require('./helpers/fixtures');
+const { createTestAddress, CHECKOUT_CONSENT } = require('./helpers/fixtures');
 
 jest.setTimeout(60000);
 
@@ -43,7 +43,7 @@ describe('Notifications, real-time & chat', () => {
 
   async function placeOrder(c) {
     await request(app).post('/api/cart/items').set('Authorization', `Bearer ${c.token}`).send({ productId: product.id, quantity: 1 });
-    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${c.token}`).send({ addressId: c.addressId });
+    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${c.token}`).send({ ...CHECKOUT_CONSENT, addressId: c.addressId });
     expect(res.statusCode).toBe(201);
     createdOrderIds.push(res.body.data.order.id);
     return res.body.data.order;

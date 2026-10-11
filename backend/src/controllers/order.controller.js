@@ -1,11 +1,12 @@
 const orderService = require('../services/order.service');
+const { requestContext } = require('../services/securityEvent.service');
 
 // ---------- Customer endpoints ----------
 
 async function createOrder(req, res, next) {
   try {
     const { language, ...payload } = req.body;
-    const order = await orderService.createOrderFromCart(req.user.id, payload);
+    const order = await orderService.createOrderFromCart(req.user.id, { ...payload, ctx: requestContext(req) });
     res.status(201).json({
       success: true,
       message: 'Order created successfully',

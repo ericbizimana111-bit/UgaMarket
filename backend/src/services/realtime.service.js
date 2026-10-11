@@ -92,10 +92,16 @@ function publish(channel, event, data) {
   return set.size;
 }
 
+/** Number of open connections on a channel (0 = nobody online). */
+function subscriberCount(channel) {
+  const set = channels.get(channel);
+  return set ? set.size : 0;
+}
+
 function stats() {
   const out = {};
   for (const [name, set] of channels) out[name] = set.size;
   return out;
 }
 
-module.exports = { issueTicket, verifyTicket, subscribe, publish, stats, TICKET_TTL_SECONDS };
+module.exports = { issueTicket, verifyTicket, subscribe, publish, subscriberCount, stats, TICKET_TTL_SECONDS };

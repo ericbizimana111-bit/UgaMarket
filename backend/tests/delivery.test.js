@@ -5,7 +5,7 @@ const env = require('../src/config/env');
 const { signAdminToken } = require('../src/services/token.service');
 const { signMockWebhook } = require('../src/services/paymentProviders/mockProvider');
 const bcrypt = require('bcryptjs');
-const { createTestAddress } = require('./helpers/fixtures');
+const { createTestAddress, CHECKOUT_CONSENT } = require('./helpers/fixtures');
 
 // Under full parallel suite load, setup (registrations + bcrypt) exceeds Jest's 5s default
 jest.setTimeout(60000);
@@ -58,7 +58,7 @@ describe('Phase 7 Delivery & Fulfillment', () => {
     const res = await request(app)
       .post('/api/orders')
       .set('Authorization', `Bearer ${token}`)
-      .send({
+      .send({ ...CHECKOUT_CONSENT,
         fulfillmentMethod: opts.fulfillmentMethod || 'HOME_DELIVERY',
         addressId: opts.addressId !== undefined ? opts.addressId : addressId,
         ...opts.body,

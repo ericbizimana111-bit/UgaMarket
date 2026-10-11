@@ -31,4 +31,16 @@ async function createTestAddress(userId, overrides = {}) {
   });
 }
 
-module.exports = { KAMPALA_PIN, createTestAddress };
+// Required checkout consent (POST /api/orders): current Terms + Privacy versions.
+const { LEGAL_VERSIONS } = require('../../src/services/consent.service');
+const CHECKOUT_CONSENT = Object.freeze({
+  acceptTerms: true,
+  termsVersion: LEGAL_VERSIONS.terms,
+  privacyVersion: LEGAL_VERSIONS.privacy,
+});
+// Service-level equivalent (orderService.createOrderFromCart).
+const SERVICE_CONSENT = Object.freeze({
+  consent: { termsVersion: LEGAL_VERSIONS.terms, privacyVersion: LEGAL_VERSIONS.privacy, marketingConsent: false },
+});
+
+module.exports = { KAMPALA_PIN, createTestAddress, CHECKOUT_CONSENT, SERVICE_CONSENT };

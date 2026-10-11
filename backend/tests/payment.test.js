@@ -1,6 +1,6 @@
 const request = require('supertest');
 const app = require('../src/app');
-const { createTestAddress } = require('./helpers/fixtures');
+const { createTestAddress, CHECKOUT_CONSENT } = require('./helpers/fixtures');
 const prisma = require('../src/config/db');
 const env = require('../src/config/env');
 const { signMockWebhook } = require('../src/services/paymentProviders/mockProvider');
@@ -52,7 +52,7 @@ describe('Phase 6 Payment API', () => {
 
   async function createDeliveryOrder() {
     await addToCart(product.id, 1);
-    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({ fulfillmentMethod: 'HOME_DELIVERY', addressId: addressByToken[customerToken] });
+    const res = await request(app).post('/api/orders').set('Authorization', `Bearer ${customerToken}`).send({ ...CHECKOUT_CONSENT, fulfillmentMethod: 'HOME_DELIVERY', addressId: addressByToken[customerToken] });
     expect(res.statusCode).toBe(201);
     const order = res.body.data.order;
     createdOrderIds.push(order.id);

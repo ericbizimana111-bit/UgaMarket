@@ -36,6 +36,10 @@ function formatMessage(m) {
     body: m.body,
     order: m.order ? { id: m.order.id, orderNumber: m.order.orderNumber } : null,
     serviceRequest: m.serviceRequest ? { id: m.serviceRequest.id, requestNumber: m.serviceRequest.requestNumber } : null,
+    // Receipts (sent = row exists; delivered = reached a recipient device;
+    // read = recipient opened the conversation).
+    deliveredAt: m.deliveredAt || null,
+    readAt: m.readAt || null,
     createdAt: m.createdAt,
   };
 }
@@ -102,6 +106,7 @@ function preview(text) {
 // ------------------------------------------------------------
 async function getCustomerThread(userId, opts = {}) {
   const conversation = await getOrCreateConversation(userId);
+  await markDeliveredToCustomer(userId);
   const page = await listMessages(conversation.id, opts);
   return { conversation: formatConversation(conversation), ...page };
 }
@@ -114,7 +119,13 @@ async function sendCustomerMessage(userId, { body, orderId = null, serviceReques
   const { message, wasUnread, convo } = await prisma.$transaction(async (tx) => {
     const before = await tx.conversation.findUnique({ where: { id: conversation.id }, select: { adminUnread: true } });
     const created = await tx.chatMessage.create({
-      data: { conversationId: conversation.id, senderType: 'CUSTOMER', body: text, ...refs },
+      data: {
+        conversationId: conversation.id,
+        senderType: 'CUSTOMER',
+        body: text,
+        ...refs,
+        deliveredAt: realtime.subscriberCount('admins') > 0 ? new Date() : null,
+      },
       include: MESSAGE_INCLUDE,
     });
     const updated = await tx.conversation.update({
@@ -144,11 +155,66 @@ async function sendCustomerMessage(userId, { body, orderId = null, serviceReques
   return payload.message;
 }
 
+/**
+ * Stamp receipts on the messages one side has received/read. Returns the
+ * timestamp when anything changed (null otherwise).
+ */
+async function stampReceipts(conversationId, fromSender, { read }) {
+  const now = new Date();
+  const delivered = await prisma.chatMessage.updateMany({
+    where: { conversationId, senderType: fromSender, deliveredAt: null },
+    data: { deliveredAt: now },
+  });
+  let readCount = 0;
+  if (read) {
+    const r = await prisma.chatMessage.updateMany({
+      where: { conversationId, senderType: fromSender, readAt: null },
+      data: { readAt: now },
+    });
+    readCount = r.count;
+  }
+  return delivered.count > 0 || readCount > 0 ? now : null;
+}
+
 async function markCustomerRead(userId) {
   const conversation = await getOrCreateConversation(userId);
   await prisma.conversation.update({ where: { id: conversation.id }, data: { customerUnread: 0 } });
-  realtime.publish('admins', 'chat:read', { conversationId: conversation.id, by: 'CUSTOMER' });
+  const at = (await stampReceipts(conversation.id, 'ADMIN', { read: true })) || new Date();
+  const payload = { conversationId: conversation.id, by: 'CUSTOMER', readAt: at.toISOString() };
+  realtime.publish('admins', 'chat:read', payload);
+  realtime.publish(`user:${userId}`, 'chat:read', payload);
   return { customerUnread: 0 };
+}
+
+/**
+ * A recipient came online (opened the stream or the inbox): everything sent
+ * to them so far is now delivered. Senders are told so their ticks update.
+ */
+async function markDeliveredToCustomer(userId) {
+  const conversation = await prisma.conversation.findUnique({ where: { userId }, select: { id: true } });
+  if (!conversation) return;
+  const at = await stampReceipts(conversation.id, 'ADMIN', { read: false });
+  if (at) realtime.publish('admins', 'chat:delivered', { conversationId: conversation.id, by: 'CUSTOMER', deliveredAt: at.toISOString() });
+}
+
+async function markDeliveredToAdmins() {
+  const pending = await prisma.chatMessage.findMany({
+    where: { senderType: 'CUSTOMER', deliveredAt: null },
+    select: { conversationId: true, conversation: { select: { userId: true } } },
+    distinct: ['conversationId'],
+    take: 500,
+  });
+  if (!pending.length) return;
+  const now = new Date();
+  await prisma.chatMessage.updateMany({
+    where: { senderType: 'CUSTOMER', deliveredAt: null, conversationId: { in: pending.map((p) => p.conversationId) } },
+    data: { deliveredAt: now },
+  });
+  for (const p of pending) {
+    const payload = { conversationId: p.conversationId, by: 'ADMIN', deliveredAt: now.toISOString() };
+    realtime.publish(`user:${p.conversation.userId}`, 'chat:delivered', payload);
+    realtime.publish('admins', 'chat:delivered', payload);
+  }
 }
 
 async function customerUnreadCount(userId) {
@@ -241,7 +307,14 @@ async function sendAdminMessage(admin, conversationId, { body, orderId = null, s
   const { message, wasUnread, convo } = await prisma.$transaction(async (tx) => {
     const before = await tx.conversation.findUnique({ where: { id: conversationId }, select: { customerUnread: true } });
     const created = await tx.chatMessage.create({
-      data: { conversationId, senderType: 'ADMIN', senderAdminId: admin.id, body: text, ...refs },
+      data: {
+        conversationId,
+        senderType: 'ADMIN',
+        senderAdminId: admin.id,
+        body: text,
+        ...refs,
+        deliveredAt: realtime.subscriberCount(`user:${conversation.userId}`) > 0 ? new Date() : null,
+      },
       include: MESSAGE_INCLUDE,
     });
     const updated = await tx.conversation.update({
@@ -256,6 +329,13 @@ async function sendAdminMessage(admin, conversationId, { body, orderId = null, s
   const payload = { message: formatMessage(message), conversation: formatConversation(convo) };
   realtime.publish(`user:${conversation.userId}`, 'chat:message', payload);
   realtime.publish('admins', 'chat:message', payload);
+  // Replying means staff have read the customer's messages.
+  const readAt = await stampReceipts(conversationId, 'CUSTOMER', { read: true });
+  if (readAt) {
+    const readPayload = { conversationId, by: 'ADMIN', readAt: readAt.toISOString() };
+    realtime.publish(`user:${conversation.userId}`, 'chat:read', readPayload);
+    realtime.publish('admins', 'chat:read', readPayload);
+  }
 
   if (!wasUnread) {
     await notifications.notifyCustomer(conversation.userId, {
@@ -272,13 +352,17 @@ async function markAdminRead(conversationId) {
   const conversation = await prisma.conversation.findUnique({ where: { id: conversationId }, select: { id: true, userId: true } });
   if (!conversation) throw new AppError('Conversation not found', 404);
   await prisma.conversation.update({ where: { id: conversationId }, data: { adminUnread: 0 } });
-  realtime.publish('admins', 'chat:read', { conversationId, by: 'ADMIN' });
-  realtime.publish(`user:${conversation.userId}`, 'chat:read', { conversationId, by: 'ADMIN' });
+  const at = (await stampReceipts(conversationId, 'CUSTOMER', { read: true })) || new Date();
+  const payload = { conversationId, by: 'ADMIN', readAt: at.toISOString() };
+  realtime.publish('admins', 'chat:read', payload);
+  realtime.publish(`user:${conversation.userId}`, 'chat:read', payload);
   return { adminUnread: 0 };
 }
 
 module.exports = {
   MAX_BODY,
+  markDeliveredToCustomer,
+  markDeliveredToAdmins,
   getCustomerThread,
   sendCustomerMessage,
   markCustomerRead,

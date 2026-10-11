@@ -1,4 +1,5 @@
 const prisma = require('../config/db');
+const consentService = require('./consent.service');
 const { AppError } = require('../middleware/errorHandler');
 const {
   ORDER_STATUS_TRANSITIONS,
@@ -228,7 +229,10 @@ function formatOrder(order, lang = 'EN', { includeHistory = true } = {}) {
 // ============================================================
 // CREATE ORDER (single atomic transaction)
 // ============================================================
-async function createOrderFromCart(userId, { fulfillmentMethod = 'HOME_DELIVERY', addressId, notes = null }) {
+async function createOrderFromCart(userId, { fulfillmentMethod = 'HOME_DELIVERY', addressId, notes = null, consent = null, ctx = {} }) {
+  // Terms + Privacy must be accepted (current versions) before anything else.
+  if (!consent) throw new AppError('Please confirm that you have read and agree to the Terms and Conditions and Privacy Policy.', 400);
+  consentService.assertCurrentVersions(consent);
   const prepared = await prepareDelivery(userId, { fulfillmentMethod, addressId });
 
   const order = await prisma.$transaction(async (tx) => {
@@ -373,6 +377,9 @@ async function createOrderFromCart(userId, { fulfillmentMethod = 'HOME_DELIVERY'
     // order's permanent Phase 5 snapshots. DB-level uniqueness makes retries
     // safe even across processes.
     await createDeliveryForOrder(tx, order, fulfillment.quote);
+
+    // 12. Consent records for this order (same transaction: no order without them).
+    await consentService.recordCheckoutConsents(tx, { userId, orderId: order.id, marketingConsent: consent.marketingConsent, ctx });
 
     return order;
   });

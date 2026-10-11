@@ -4,13 +4,15 @@ const prisma = require('../config/db');
 const { AppError } = require('../middleware/errorHandler');
 const { verifyAdminToken, verifyCustomerToken } = require('../services/token.service');
 const realtime = require('../services/realtime.service');
+const { isRevoked } = require('../middleware/auth');
+const chatService = require('../services/chat.service');
 
 /**
  * POST /api/realtime/ticket   (Authorization: Bearer <customer or admin JWT>)
  *   -> { ticket, expiresIn }  short-lived ticket for the SSE stream
  * GET  /api/realtime/stream?ticket=...
- *   -> text/event-stream: "notification", "chat:message", "chat:read",
- *      "order:update", "service:update" events
+ *   -> text/event-stream: "notification", "chat:message", "chat:delivered",
+ *      "chat:read", "order:update", "service:update" and "call:*" events
  */
 
 function bearer(req) {
@@ -34,8 +36,8 @@ router.post('/ticket', async (req, res, next) => {
     }
     if (!identity) {
       const decoded = verifyCustomerToken(token); // throws 401 when invalid
-      const user = await prisma.user.findUnique({ where: { id: decoded.sub }, select: { id: true, isActive: true } });
-      if (!user || !user.isActive) throw new AppError('User not found or account is inactive', 401);
+      const user = await prisma.user.findUnique({ where: { id: decoded.sub }, select: { id: true, isActive: true, passwordChangedAt: true } });
+      if (!user || !user.isActive || isRevoked(decoded, user)) throw new AppError('User not found or account is inactive', 401);
       identity = { kind: 'CUSTOMER', id: user.id };
     }
 
@@ -59,6 +61,9 @@ router.get('/stream', (req, res, next) => {
     }
     const channels = claims.kind === 'ADMIN' ? ['admins', `admin:${claims.sub}`] : [`user:${claims.sub}`];
     realtime.subscribe(req, res, channels);
+    // The recipient is online: messages waiting for them are now delivered.
+    const deliver = claims.kind === 'ADMIN' ? chatService.markDeliveredToAdmins() : chatService.markDeliveredToCustomer(claims.sub);
+    deliver.catch(() => {});
   } catch (error) {
     next(error);
   }
