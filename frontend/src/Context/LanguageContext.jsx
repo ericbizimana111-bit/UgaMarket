@@ -7,6 +7,7 @@ import {
   localeFor,
   translate
 } from '../i18n';
+import { prefStorage } from '../utils/consent';
 
 export { SUPPORTED_LANGUAGES };
 
@@ -17,7 +18,7 @@ const STORAGE_KEY = 'ugamarket_lang';
 /** Saved choice wins; otherwise follow the browser; otherwise English. */
 function getInitialLanguage() {
   try {
-    const saved = localStorage.getItem(STORAGE_KEY);
+    const saved = prefStorage.get(STORAGE_KEY);
     if (saved && isSupportedLanguage(saved)) return saved;
   } catch {
     /* storage unavailable */
@@ -41,7 +42,8 @@ export const LanguageProvider = ({ children }) => {
     if (!isSupportedLanguage(code)) return;
     setCurrentLang(code);
     try {
-      localStorage.setItem(STORAGE_KEY, code);
+      // Remembered across visits only with preference-cookie consent.
+      prefStorage.set(STORAGE_KEY, code);
     } catch {
       /* non-fatal */
     }
