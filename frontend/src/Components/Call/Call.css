@@ -1,6 +1,7 @@
 /* Floating voice-call panel: bottom-right on desktop, full-width above the
    bottom navigation on phones. */
 .um-call {
+  flex-wrap: wrap;
   position: fixed;
   right: 20px;
   bottom: 20px;
@@ -170,4 +171,77 @@
   display: inline-flex;
   align-items: center;
   gap: 8px;
+}
+
+/* Live call health */
+.um-call__health {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.um-call__meters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.um-call__meter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+
+.um-call__meter small {
+  font-size: var(--text-xs);
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.um-call__bar {
+  height: 6px;
+  overflow: hidden;
+  background: var(--surface-alt);
+  border-radius: 999px;
+}
+
+.um-call__bar span {
+  display: block;
+  height: 100%;
+  background: #16a34a;
+  border-radius: 999px;
+  transition: width 0.15s linear;
+}
+
+.um-call__warn {
+  padding: 6px 10px;
+  font-size: var(--text-sm);
+  line-height: 1.4;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-radius: var(--radius-sm);
+}
+
+.um-call__mic {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: var(--text-xs);
+  color: var(--muted);
+}
+
+.um-call__mic .form-select {
+  min-height: 38px;
+  font-size: var(--text-sm);
+}
+
+.um-call__tip {
+  font-size: var(--text-xs);
+  color: var(--faint);
 }

@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { useRealtimeEvent } from './RealtimeContext';
 import { useToast } from '../Components/Toast/Toast';
 import { startLoop, playTone } from '../utils/sounds';
+import { listMicrophones, startCallDiagnostics, switchMicrophone, tuneAudioSender } from '../utils/callDiagnostics';
 
 /**
  * Voice calls between the customer and UgaMarket (WebRTC audio), both ways:
@@ -37,6 +38,11 @@ export const CallProvider = ({ children }) => {
   const [agentName, setAgentName] = useState(null);
   const [muted, setMuted] = useState(false);
   const [connectedAt, setConnectedAt] = useState(null);
+  // Live health: my mic level, the other side's level, connection quality.
+  const [health, setHealth] = useState(null);
+  const [microphones, setMicrophones] = useState([]);
+  const [micId, setMicId] = useState('');
+  const diagRef = useRef(null);
 
   const callIdRef = useRef(null);
   const roleRef = useRef(null); // 'caller' | 'callee'
@@ -61,6 +67,9 @@ export const CallProvider = ({ children }) => {
 
   const cleanup = useCallback(() => {
     silenceRing();
+    diagRef.current?.stop();
+    diagRef.current = null;
+    setHealth(null);
     try {
       pcRef.current?.close();
     } catch {
@@ -124,6 +133,7 @@ export const CallProvider = ({ children }) => {
         if (stateRef.current !== 'connected') {
           setState('connected');
           setConnectedAt(Date.now());
+          tuneAudioSender(pc);
           playTone('alert', { force: true });
           audioRef.current?.play?.().catch(() => {});
         }
@@ -134,6 +144,13 @@ export const CallProvider = ({ children }) => {
     };
     pc.onconnectionstatechange = onState;
     pc.oniceconnectionstatechange = onState;
+    diagRef.current?.stop();
+    diagRef.current = startCallDiagnostics({ pc, stream: streamRef.current, onUpdate: setHealth });
+    listMicrophones().then((list) => {
+      setMicrophones(list);
+      const current = streamRef.current?.getAudioTracks?.()[0]?.getSettings?.().deviceId;
+      if (current) setMicId(current);
+    });
     return pc;
   }, [signal, hangUp]);
 
@@ -321,6 +338,22 @@ export const CallProvider = ({ children }) => {
     setMuted(!track.enabled);
   }, []);
 
+  /** Change microphone mid-call (e.g. the default one picks up nothing). */
+  const changeMicrophone = useCallback(
+    async (deviceId) => {
+      if (!deviceId || !pcRef.current) return;
+      try {
+        const next = await switchMicrophone({ pc: pcRef.current, oldStream: streamRef.current, deviceId, muted });
+        streamRef.current = next;
+        diagRef.current?.setStream(next);
+        setMicId(deviceId);
+      } catch {
+        toast?.showToast?.('That microphone could not be used.', { type: 'error' });
+      }
+    },
+    [muted, toast]
+  );
+
   const dismiss = useCallback(() => {
     clearTimeout(resetTimer.current);
     setState('idle');
@@ -343,9 +376,13 @@ export const CallProvider = ({ children }) => {
       hangUp,
       toggleMute,
       dismiss,
+      health,
+      microphones,
+      micId,
+      changeMicrophone,
       available: isAuthenticated
     }),
-    [state, error, endReason, agentName, muted, connectedAt, startCall, acceptIncoming, declineIncoming, hangUp, toggleMute, dismiss, isAuthenticated]
+    [state, error, endReason, agentName, muted, connectedAt, startCall, acceptIncoming, declineIncoming, hangUp, toggleMute, dismiss, health, microphones, micId, changeMicrophone, isAuthenticated]
   );
 
   return (

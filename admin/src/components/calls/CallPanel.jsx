@@ -17,8 +17,21 @@ function useElapsed(since) {
 }
 
 /** Incoming-call card(s) and the in-call bar, shown on every console page. */
+function Meter({ label, level }) {
+  return (
+    <span className="callmeter">
+      <small>{label}</small>
+      <span className="callmeter__bar" aria-hidden="true">
+        <span style={{ width: `${Math.round((level || 0) * 100)}%` }} />
+      </span>
+    </span>
+  );
+}
+
+const QUALITY = { good: 'Good connection', fair: 'Fair connection', poor: 'Weak connection' };
+
 export default function CallPanel() {
-  const { ringing, active, muted, answer, decline, hangUp, toggleMute } = useCalls();
+  const { ringing, active, muted, answer, decline, hangUp, toggleMute, health, microphones, micId, changeMicrophone } = useCalls();
   const elapsed = useElapsed(active?.since);
 
   if (!active && ringing.length === 0) return null;
@@ -46,6 +59,49 @@ export default function CallPanel() {
           <button type="button" className="callcard__btn callcard__btn--end" onClick={hangUp} aria-label="End call">
             <PhoneOff size={18} aria-hidden="true" />
           </button>
+          {health && active.state !== 'calling' && (
+            <div className="callhealth">
+              <div className="callhealth__meters">
+                <Meter label="Customer's microphone" level={health.remoteLevel} />
+                <Meter label="Your microphone" level={health.micLevel} />
+              </div>
+              {active.state === 'connected' && (
+                <small className={`callhealth__quality callhealth__quality--${health.quality}`}>
+                  {QUALITY[health.quality]}
+                  {health.rttMs != null && ` · ${health.rttMs} ms`}
+                  {health.lossPct > 0 && ` · ${health.lossPct}% lost`}
+                </small>
+              )}
+              {active.state === 'connected' && health.remoteSilent && (
+                <p className="callhealth__warn">
+                  No sound is arriving from the customer&apos;s microphone. Ask them (in chat) to check their mic isn&apos;t muted or blocked, or to pick
+                  another microphone in their call panel.
+                </p>
+              )}
+              {active.state === 'connected' && health.quality === 'poor' && (
+                <p className="callhealth__warn">The connection is weak (often the customer&apos;s mobile data). Sound may break up or crackle.</p>
+              )}
+              {active.state === 'connected' && health.micSilent && !muted && (
+                <p className="callhealth__warn">Your microphone is picking up nothing. Check it or choose another below.</p>
+              )}
+              {microphones.length > 1 && (
+                <label className="callhealth__mic">
+                  Microphone
+                  <select value={micId} onChange={(e) => changeMicrophone(e.target.value)}>
+                    {microphones.map((m) => (
+                      <option key={m.id} value={m.id}>
+                        {m.label}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              )}
+              <small className="callhealth__tip">
+                Testing on your own? Use two devices in different rooms, or earphones. One computer (or two phones side by side) playing both ends
+                confuses echo cancellation and turns the voice into noise.
+              </small>
+            </div>
+          )}
         </div>
       ) : null}
 

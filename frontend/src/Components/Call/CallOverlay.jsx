@@ -32,9 +32,18 @@ function useElapsed(since) {
   return `${String(Math.floor(s / 60)).padStart(2, '0')}:${String(s % 60).padStart(2, '0')}`;
 }
 
+const Meter = ({ label, level }) => (
+  <span className="um-call__meter">
+    <small>{label}</small>
+    <span className="um-call__bar" aria-hidden="true">
+      <span style={{ width: `${Math.round((level || 0) * 100)}%` }} />
+    </span>
+  </span>
+);
+
 /** Floating call panel, shown on every page while a call is in progress. */
 const CallOverlay = () => {
-  const { state, error, agentName, muted, connectedAt, hangUp, toggleMute, dismiss, acceptIncoming, declineIncoming } = useCall();
+  const { state, error, agentName, muted, connectedAt, hangUp, toggleMute, dismiss, acceptIncoming, declineIncoming, health, microphones, micId, changeMicrophone } = useCall();
   const { t } = useLanguage();
   const elapsed = useElapsed(connectedAt);
 
@@ -102,6 +111,31 @@ const CallOverlay = () => {
           </button>
         )}
       </div>
+
+      {(state === 'connecting' || state === 'connected') && health && (
+        <div className="um-call__health">
+          <div className="um-call__meters">
+            <Meter label={t('callMeterYou')} level={health.micLevel} />
+            <Meter label={agentName || 'UgaMarket'} level={health.remoteLevel} />
+          </div>
+          {state === 'connected' && health.micSilent && !muted && <p className="um-call__warn">{t('callWarnMicSilent')}</p>}
+          {state === 'connected' && health.remoteSilent && <p className="um-call__warn">{t('callWarnRemoteSilent')}</p>}
+          {state === 'connected' && health.quality === 'poor' && <p className="um-call__warn">{t('callWarnPoor')}</p>}
+          {microphones.length > 1 && (
+            <label className="um-call__mic">
+              <span>{t('callMicrophone')}</span>
+              <select className="form-select" value={micId} onChange={(e) => changeMicrophone(e.target.value)}>
+                {microphones.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+          <p className="um-call__tip">{t('callTipHeadphones')}</p>
+        </div>
+      )}
     </div>
   );
 };

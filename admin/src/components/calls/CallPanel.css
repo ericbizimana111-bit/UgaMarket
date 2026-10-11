@@ -10,6 +10,7 @@
 }
 
 .callcard {
+  flex-wrap: wrap;
   display: flex;
   align-items: center;
   gap: 10px;
@@ -143,4 +144,90 @@
   .callcard__icon--pulse::after {
     animation: none;
   }
+}
+
+.callhealth {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  padding-top: 10px;
+  border-top: 1px solid var(--border);
+}
+
+.callhealth__meters {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+}
+
+.callmeter {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.callmeter small {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+}
+
+.callmeter__bar {
+  height: 7px;
+  overflow: hidden;
+  background: var(--surface-sunken);
+  border-radius: 999px;
+}
+
+.callmeter__bar span {
+  display: block;
+  height: 100%;
+  background: var(--success);
+  border-radius: 999px;
+  transition: width 0.15s linear;
+}
+
+.callhealth__quality {
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+.callhealth__quality--good {
+  color: var(--success);
+}
+
+.callhealth__quality--fair {
+  color: var(--warning);
+}
+
+.callhealth__quality--poor {
+  color: var(--danger);
+}
+
+.callhealth__warn {
+  margin: 0;
+  padding: 6px 10px;
+  font-size: 0.8rem;
+  line-height: 1.4;
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-radius: var(--radius-sm);
+}
+
+.callhealth__mic {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.75rem;
+  color: var(--text-muted);
+}
+
+.callhealth__mic select {
+  min-height: 34px;
+}
+
+.callhealth__tip {
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: var(--text-faint);
 }
