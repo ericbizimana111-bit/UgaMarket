@@ -7,6 +7,8 @@ const { logAudit } = require('../services/audit.service');
 const geo = require('../services/geo.service');
 const { AppError } = require('../middleware/errorHandler');
 const { calculateDeliveryFee } = require('../services/delivery.service');
+const messaging = require('../services/messaging');
+const { renderEmail } = require('../services/messaging/templates');
 
 /**
  * Store settings the owner controls from the console:
@@ -119,6 +121,42 @@ router.put(
       : await prisma.commitmentRuleConfig.create({ data });
     await logAudit({ adminId: req.admin.id, action: 'COMMITMENT_SETTINGS_UPDATE', entityName: 'CommitmentRuleConfig', entityId: String(saved.id), details: req.body, ipAddress: req.ip });
     res.json({ success: true, message: 'Deposit rule saved', data: { commitment: formatCommitment(saved) } });
+  })
+);
+
+// Email delivery check: confirms the configured provider really delivers
+// (production has no shell). Super admin only, throttled.
+const emailTestLog = [];
+router.post(
+  '/email-test',
+  requireRole('SUPER_ADMIN'),
+  validateRequest({ body: z.object({ to: z.string().trim().toLowerCase().email().max(255).optional() }) }),
+  wrap(async (req, res) => {
+    const now = Date.now();
+    while (emailTestLog.length && now - emailTestLog[0] > 10 * 60 * 1000) emailTestLog.shift();
+    if (emailTestLog.length >= 5) throw new AppError('Too many test emails. Try again in a few minutes.', 429);
+    emailTestLog.push(now);
+
+    const to = req.body.to || req.admin.email;
+    const { html, text } = renderEmail({
+      heading: 'UgaMarket email test',
+      paragraphs: ['This test email confirms that UgaMarket can deliver verification and password-reset emails.'],
+    });
+    const result = await messaging.sendEmail({ to, subject: 'UgaMarket email delivery test', html, text, tag: 'admin:email-test' });
+    await logAudit({
+      adminId: req.admin.id,
+      action: 'EMAIL_DELIVERY_TEST',
+      entityName: 'Email',
+      entityId: messaging.maskTarget(to),
+      details: { provider: messaging.emailProvider(), status: result.status, reason: result.error || null },
+      ipAddress: req.ip,
+    });
+    const delivered = result.status === 'SENT' || result.status === 'LOGGED';
+    res.status(delivered ? 200 : 502).json({
+      success: delivered,
+      message: delivered ? `Test email accepted by ${messaging.emailProvider()} for ${messaging.maskTarget(to)}` : 'The test email could not be sent',
+      data: { provider: messaging.emailProvider(), status: result.status, reason: result.error || null, sentTo: messaging.maskTarget(to) },
+    });
   })
 );
 

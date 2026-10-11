@@ -15,6 +15,16 @@ const jobTimers = [];
 function startBackgroundJobs() {
   const callService = require('./src/services/call.service');
   const newsletter = require('./src/services/newsletter.service');
+  const messaging = require('./src/services/messaging');
+
+  // Prove the email provider works now, not when the first customer signs up.
+  messaging
+    .verifyEmailProvider()
+    .then((r) => {
+      if (r.ok) logger.info(`[email] provider ${r.provider} ready${r.reason ? ` (${r.reason})` : ''}`);
+      else logger.error(`[email] provider ${r.provider} NOT working: ${r.reason}${r.hint ? ` | ${r.hint}` : ''}`);
+    })
+    .catch((error) => logger.warn('[email] provider check failed:', error.message));
 
   // Calls cannot survive a restart (their signalling lived in the old process).
   callService

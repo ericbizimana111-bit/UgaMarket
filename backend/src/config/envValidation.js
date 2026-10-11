@@ -247,6 +247,9 @@ function validateProductionConfig(config, rawEnv = {}) {
   if (emailProviderName === 'RESEND' && !String(config.RESEND_API_KEY || '').trim()) {
     problems.push('EMAIL_PROVIDER=RESEND requires RESEND_API_KEY.');
   }
+  if (emailProviderName === 'BREVO' && !String(config.BREVO_API_KEY || '').trim()) {
+    problems.push('EMAIL_PROVIDER=BREVO requires BREVO_API_KEY (Brevo > SMTP & API > API keys).');
+  }
   if (config.SMS_VERIFICATION_ENABLED === true && String(config.SMS_PROVIDER || 'LOG').toUpperCase() === 'AFRICASTALKING') {
     if (!String(config.AT_USERNAME || '').trim() || !String(config.AT_API_KEY || '').trim()) {
       problems.push("SMS_PROVIDER=AFRICASTALKING requires AT_USERNAME and AT_API_KEY (Africa's Talking dashboard > Settings > API Key).");
@@ -274,6 +277,12 @@ function productionWarnings(config) {
     warnings.push('SMS_VERIFICATION_ENABLED=true but SMS_PROVIDER is not configured: codes will only be sent by email.');
   } else if (!email) {
     warnings.push('EMAIL_PROVIDER is not configured: newsletter emails are disabled.');
+  }
+  // Render sets RENDER=true. Its free instances cannot open SMTP connections.
+  if (String(config.EMAIL_PROVIDER || '').toUpperCase() === 'SMTP' && String(process.env.RENDER || '') === 'true') {
+    warnings.push(
+      'EMAIL_PROVIDER=SMTP on Render: free Render instances block outbound SMTP ports 25/465/587, so emails time out. Use EMAIL_PROVIDER=BREVO (BREVO_API_KEY) or RESEND, which send over HTTPS.'
+    );
   }
   const hasTurn =
     (String(config.CLOUDFLARE_TURN_KEY_ID || '').trim() && String(config.CLOUDFLARE_TURN_API_TOKEN || '').trim()) || String(config.TURN_URLS || '').trim();

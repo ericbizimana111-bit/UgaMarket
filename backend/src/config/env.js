@@ -99,7 +99,9 @@ const envSchema = z.object({
   // ── Email + SMS delivery (verification codes, newsletter) ──
   // LOG prints messages to the console in development only; in production a
   // real provider is required for codes to reach customers.
-  EMAIL_PROVIDER: z.enum(['SMTP', 'RESEND', 'LOG']).default('LOG'),
+  // NOTE: Render's FREE plan blocks outbound SMTP (ports 25/465/587), so on
+  // Render free use an HTTPS API provider: BREVO (no domain needed) or RESEND.
+  EMAIL_PROVIDER: z.enum(['SMTP', 'BREVO', 'RESEND', 'LOG']).default('LOG'),
   EMAIL_FROM: z.string().trim().default(''), // e.g. "UgaMarket <no-reply@ugamarket.ug>"
   SMTP_HOST: z.string().trim().default(''),
   SMTP_PORT: z.coerce.number().int().min(1).max(65535).default(587),
@@ -110,6 +112,7 @@ const envSchema = z.object({
   SMTP_USER: z.string().default(''),
   SMTP_PASS: z.string().default(''),
   RESEND_API_KEY: z.string().default(''),
+  BREVO_API_KEY: z.string().trim().default(''), // Brevo > SMTP & API > API keys (starts with xkeysib-)
   // Phone (SMS) verification codes. OFF for now: every code goes by email.
   // Turn on later with SMS_VERIFICATION_ENABLED=true + an SMS provider.
   SMS_VERIFICATION_ENABLED: z

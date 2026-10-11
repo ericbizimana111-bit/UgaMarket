@@ -91,7 +91,8 @@ services:
       - key: MYMEMORY_EMAIL
         sync: false
       # ── Verification codes, newsletter (email + SMS) ──
-      # SMTP (e.g. Gmail app password, Zoho, Brevo) or RESEND.
+      # Render FREE blocks outbound SMTP (ports 25/465/587): use BREVO (HTTPS
+      # API, works with a verified Gmail sender) or RESEND, not SMTP.
       - key: EMAIL_PROVIDER
         sync: false
       - key: EMAIL_FROM
@@ -105,6 +106,8 @@ services:
       - key: SMTP_PASS
         sync: false
       - key: RESEND_API_KEY
+        sync: false
+      - key: BREVO_API_KEY
         sync: false
       # Phone (SMS) verification is OFF for now: codes go by email. To turn it
       # on later set SMS_VERIFICATION_ENABLED=true, SMS_PROVIDER=AFRICASTALKING

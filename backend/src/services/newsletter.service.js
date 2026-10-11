@@ -48,7 +48,7 @@ async function sendConfirmation(subscriber, token) {
     cta: { url: shopUrl(`/newsletter/confirm?token=${token}`), label: 'Confirm my subscription' },
     footerNote: 'This link expires in 7 days.',
   });
-  return messaging.sendEmail({ to: subscriber.email, subject: 'Confirm your UgaMarket subscription', html, text });
+  return messaging.sendEmail({ to: subscriber.email, subject: 'Confirm your UgaMarket subscription', html, text, tag: 'newsletter:confirm' });
 }
 
 const GENERIC_RESPONSE = { message: 'Almost done! Check your inbox and click the link to confirm your subscription.' };
@@ -215,6 +215,7 @@ async function runNewArrivalsDigest({ now = new Date() } = {}) {
             html,
             text,
             headers: { 'List-Unsubscribe': `<${link}>` },
+            tag: 'newsletter:new-arrivals',
           });
           if (result.status !== 'FAILED') emails += 1;
         }

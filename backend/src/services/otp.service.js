@@ -81,14 +81,14 @@ async function deliver(channel, target, purpose, code) {
     code,
     footerNote: `This code expires in ${ttl} minutes. If you did not request it, you can safely ignore this email.`,
   });
-  return messaging.sendEmail({ to: target, subject: copy.subject, html, text });
+  return messaging.sendEmail({ to: target, subject: copy.subject, html, text, tag: `otp:${purpose}` });
 }
 
 async function deliverNotice(channel, target, notice) {
   if (!notice) return { status: 'SUPPRESSED', providerRef: null };
   if (channel === 'SMS') return messaging.sendSms(target, notice.sms);
   const { html, text } = renderEmail({ heading: notice.emailHeading, paragraphs: notice.emailParagraphs, cta: notice.cta });
-  return messaging.sendEmail({ to: target, subject: notice.emailSubject, html, text });
+  return messaging.sendEmail({ to: target, subject: notice.emailSubject, html, text, tag: 'otp:notice' });
 }
 
 /** Is a delivery channel usable right now? (LOG only counts outside production.) */
@@ -140,7 +140,7 @@ async function issueOtp({ purpose, channel, target, userId = null, ctx = {}, dec
     throw codedError(
       channel === 'SMS'
         ? 'Verification codes are sent by email for now. Please use your email address.'
-        : 'Email verification is temporarily unavailable. Please use your phone number instead or try again later.',
+        : 'Email verification is temporarily unavailable. Please try again in a few minutes.',
       503,
       'OTP_CHANNEL_UNAVAILABLE'
     );
@@ -189,7 +189,7 @@ async function issueOtp({ purpose, channel, target, userId = null, ctx = {}, dec
       throw codedError(
         channel === 'SMS'
           ? 'We could not send the SMS. Please check the number and try again, or use your email.'
-          : 'We could not send the email. Please check the address and try again, or use your phone.',
+          : 'We could not send the verification email right now. Please check the address and try again in a few minutes.',
         502,
         'OTP_DELIVERY_FAILED'
       );
